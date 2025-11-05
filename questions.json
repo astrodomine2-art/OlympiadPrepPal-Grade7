@@ -121,5 +121,25 @@
     "subject": "NSO",
     "difficulty": "Medium",
     "imageSvg": "<svg width=\"200\" height=\"150\" viewBox=\"0 0 200 150\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1\" y=\"1\" width=\"198\" height=\"148\" fill=\"#90ee90\" stroke=\"#006400\" stroke-width=\"2\" rx=\"15\" ry=\"15\" /><rect x=\"10\" y=\"10\" width=\"180\" height=\"130\" fill=\"#c8e6c9\" stroke=\"#006400\" stroke-width=\"1\" rx=\"10\" ry=\"10\" /><ellipse cx=\"150\" cy=\"75\" rx=\"30\" ry=\"45\" fill=\"#a52a2a\" /><text x=\"150\" y=\"80\" font-family=\"Arial\" font-size=\"12\" text-anchor=\"middle\" fill=\"white\">Nucleus</text><ellipse cx=\"50\" cy=\"50\" rx=\"15\" ry=\"10\" fill=\"#008000\" /><text x=\"50\" y=\"40\" font-family=\"Arial\" font-size=\"14\" font-weight=\"bold\" fill=\"black\">X</text><path d=\"M50 45 L 80 20 M 80 20 H 100\" stroke=\"black\" stroke-width=\"2\" fill=\"none\" /></svg>"
+  },
+  {
+    "id": "ieo_voc_001",
+    "questionText": "Choose the word that is most nearly the opposite in meaning to the word 'VAGUE'.",
+    "options": ["Unclear", "Precise", "Fuzzy", "Indistinct"],
+    "correctAnswerIndex": 1,
+    "explanation": "Vague means of uncertain, indefinite, or unclear character or meaning. Precise is the direct opposite, meaning marked by exactness and accuracy of expression or detail.",
+    "topic": "Vocabulary",
+    "subject": "IEO",
+    "difficulty": "Easy"
+  },
+  {
+    "id": "icso_fun_001",
+    "questionText": "Which of the following is considered the 'brain' of the computer?",
+    "options": ["RAM", "Hard Drive", "CPU", "Motherboard"],
+    "correctAnswerIndex": 2,
+    "explanation": "The CPU (Central Processing Unit) is responsible for executing instructions and performing calculations, which is why it is often referred to as the 'brain' of the computer.",
+    "topic": "Computer Fundamentals",
+    "subject": "ICSO",
+    "difficulty": "Easy"
   }
 ]

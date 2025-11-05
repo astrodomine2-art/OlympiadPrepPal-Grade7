@@ -1,6 +1,8 @@
 export enum Subject {
   IMO = 'IMO',
   NSO = 'NSO',
+  IEO = 'IEO',
+  ICSO = 'ICSO',
 }
 
 export type AppView = 'setup' | 'quiz' | 'report' | 'history' | 'mock_exams';
@@ -45,4 +47,19 @@ export const NSO_TOPICS = [
   "Chemistry",
   "Biology",
   "Logical Reasoning",
+];
+
+export const IEO_TOPICS = [
+    "Vocabulary",
+    "Grammar",
+    "Reading Comprehension",
+    "Spoken and Written Expression",
+];
+
+export const ICSO_TOPICS = [
+    "Computer Fundamentals",
+    "Internet and Security",
+    "HTML & CSS",
+    "MS Office",
+    "Logical Reasoning"
 ];

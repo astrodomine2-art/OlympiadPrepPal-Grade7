@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, QuizResult } from '../types';
+import { revalidateQuestion } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
 
@@ -8,9 +8,10 @@ interface QuizProps {
   questions: Question[];
   isMock: boolean;
   onQuizComplete: (result: QuizResult) => void;
+  onQuestionRevalidated: (index: number, updatedQuestion: Question) => void;
 }
 
-const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
+const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuestionRevalidated }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>(Array(questions.length).fill(null));
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -19,6 +20,10 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
   
   const mockDuration = questions.length * 60; // 60 seconds per question
   const [timeLeft, setTimeLeft] = useState(mockDuration);
+  
+  const [revalidationState, setRevalidationState] = useState<{ status: 'idle' | 'loading' | 'success' | 'error', message: string }>({ status: 'idle', message: '' });
+  const [revalidatedIndices, setRevalidatedIndices] = useState<Set<number>>(new Set());
+  const messageTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isMock) {
@@ -39,11 +44,15 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
 
   useEffect(() => {
     return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     };
   }, []);
+  
+  useEffect(() => {
+    // Reset revalidation message when question changes
+    setRevalidationState({ status: 'idle', message: '' });
+  }, [currentQuestionIndex]);
 
   const handleOptionSelect = (optionIndex: number) => {
     setSelectedOption(optionIndex);
@@ -80,6 +89,32 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
     });
   };
   
+  const handleRevalidate = async () => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    setRevalidationState({ status: 'loading', message: 'Revalidating with AI...' });
+    
+    try {
+        const originalQuestion = questions[currentQuestionIndex];
+        const validatedQuestion = await revalidateQuestion(originalQuestion);
+        
+        onQuestionRevalidated(currentQuestionIndex, validatedQuestion);
+        setRevalidatedIndices(prev => new Set(prev).add(currentQuestionIndex));
+
+        const wasChanged = JSON.stringify(originalQuestion) !== JSON.stringify(validatedQuestion);
+        const message = wasChanged ? "AI found an error and corrected the question." : "AI confirmed the question is correct.";
+        
+        setRevalidationState({ status: 'success', message });
+
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        setRevalidationState({ status: 'error', message });
+    } finally {
+        messageTimerRef.current = window.setTimeout(() => {
+            setRevalidationState({ status: 'idle', message: '' });
+        }, 4000);
+    }
+  };
+  
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -88,6 +123,8 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const isRevalidating = revalidationState.status === 'loading';
+  const hasBeenRevalidated = revalidatedIndices.has(currentQuestionIndex);
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -97,7 +134,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
           {isMock && <div className="text-lg font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">Time Left: {formatTime(timeLeft)}</div>}
         </div>
         
-        <div className="min-h-[150px]">
+        <div className={`min-h-[150px] transition-opacity duration-300 ${isRevalidating ? 'opacity-50' : 'opacity-100'}`}>
           <p className="text-lg md:text-xl text-slate-800 mb-4">{currentQuestion.questionText}</p>
           {currentQuestion.imageSvg && (
             <div className="my-4 flex justify-center">
@@ -110,7 +147,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
           )}
         </div>
         
-        <div className="space-y-3 mt-6">
+        <div className={`space-y-3 mt-6 transition-opacity duration-300 ${isRevalidating ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           {currentQuestion.options.map((option, index) => (
             <button
               key={index}
@@ -127,13 +164,25 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete }) => {
           ))}
         </div>
 
-        <div className="mt-8 pt-6 border-t text-right">
+        <div className="mt-8 pt-6 border-t flex justify-between items-center">
+          <div className="flex items-center space-x-2 h-10">
+            {!isMock && (
+              <Button onClick={handleRevalidate} variant="secondary" disabled={isRevalidating || hasBeenRevalidated}>
+                {isRevalidating ? 'Checking...' : hasBeenRevalidated ? 'Validated' : 'Revalidate Question'}
+              </Button>
+            )}
+            {revalidationState.message && (
+                <p className={`text-sm font-semibold ${revalidationState.status === 'success' ? 'text-green-600' : revalidationState.status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
+                    {revalidationState.message}
+                </p>
+            )}
+          </div>
           {isLastQuestion ? (
-            <Button onClick={handleSubmit} disabled={selectedOption === null}>
+            <Button onClick={handleSubmit} disabled={selectedOption === null || isRevalidating}>
               Submit Quiz
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={selectedOption === null}>
+            <Button onClick={handleNext} disabled={selectedOption === null || isRevalidating}>
               Next Question
             </Button>
           )}

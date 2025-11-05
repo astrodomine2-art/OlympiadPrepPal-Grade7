@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Question, QuizResult, Subject, Difficulty } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
@@ -126,9 +125,24 @@ const App: React.FC = () => {
   
   const handleQuizComplete = useCallback((result: QuizResult) => {
     setCurrentResult(result);
-    setHistory([...history, result]);
+    setHistory(prevHistory => {
+        const updatedHistory = [...prevHistory, result];
+        if (updatedHistory.length > 10) {
+            // Keep only the last 10 reports
+            return updatedHistory.slice(updatedHistory.length - 10);
+        }
+        return updatedHistory;
+    });
     setView('report');
-  }, [history, setHistory]);
+  }, [setHistory]);
+  
+  const handleQuestionRevalidated = (questionIndex: number, updatedQuestion: Question) => {
+    setQuizQuestions(currentQuestions => {
+        const newQuestions = [...currentQuestions];
+        newQuestions[questionIndex] = updatedQuestion;
+        return newQuestions;
+    });
+  };
   
   const handleViewHistory = () => {
     setView('history');
@@ -137,12 +151,6 @@ const App: React.FC = () => {
   const handleViewReportFromHistory = (result: QuizResult) => {
     setCurrentResult(result);
     setView('report');
-  };
-  
-  const handleClearHistory = () => {
-    if(window.confirm("Are you sure you want to clear your entire quiz history? This action cannot be undone.")){
-        setHistory([]);
-    }
   };
 
   const resetToHome = () => {
@@ -177,11 +185,11 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'quiz':
-        return <Quiz questions={quizQuestions} isMock={isMock} onQuizComplete={handleQuizComplete} />;
+        return <Quiz questions={quizQuestions} isMock={isMock} onQuizComplete={handleQuizComplete} onQuestionRevalidated={handleQuestionRevalidated} />;
       case 'report':
         return currentResult && <ReportCard result={currentResult} onBackToHome={resetToHome} onRetakeQuiz={resetToHome} />;
       case 'history':
-        return <History history={history} onBackToHome={resetToHome} onViewReport={handleViewReportFromHistory} onClearHistory={handleClearHistory}/>;
+        return <History history={history} onBackToHome={resetToHome} onViewReport={handleViewReportFromHistory} />;
       case 'setup':
       default:
         return <QuizSetup onStartQuiz={handleStartQuiz} onViewHistory={handleViewHistory} />;

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { QuizResult } from '../types';
 import Button from './common/Button';
@@ -8,10 +7,9 @@ interface HistoryProps {
   history: QuizResult[];
   onBackToHome: () => void;
   onViewReport: (result: QuizResult) => void;
-  onClearHistory: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport, onClearHistory }) => {
+const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }) => {
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
       <Card>
@@ -41,9 +39,6 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport, 
                 </div>
               </div>
             ))}
-             <div className="pt-6 border-t mt-6 text-center">
-                <Button onClick={onClearHistory} variant="danger">Clear History</Button>
-             </div>
           </div>
         )}
       </Card>
