@@ -7,7 +7,7 @@ export enum Subject {
 
 export type AppView = 'setup' | 'quiz' | 'report' | 'history' | 'mock_exams';
 
-export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'HOTS (Achiever Section)';
 
 export interface Question {
   id: string;

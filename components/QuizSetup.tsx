@@ -105,12 +105,21 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
           
           <div>
             <label className="block text-lg font-semibold text-slate-700 mb-2">4. Select Difficulty</label>
-            <div className="grid grid-cols-3 gap-3">
-                {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map(d => (
-                    <button key={d} onClick={() => setDifficulty(d)} className={`p-3 rounded-lg font-semibold transition ${difficulty === d ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-                        {d}
-                    </button>
-                ))}
+            <div className="grid grid-cols-2 gap-3">
+                {(['Easy', 'Medium', 'Hard', 'HOTS (Achiever Section)'] as Difficulty[]).map(d => {
+                    const isSelected = difficulty === d;
+                    let styleClasses = "bg-slate-200 text-slate-700 hover:bg-slate-300";
+                    if (isSelected) {
+                        styleClasses = d === 'HOTS (Achiever Section)'
+                            ? 'bg-amber-500 text-white shadow-md'
+                            : 'bg-blue-600 text-white shadow-md';
+                    }
+                    return (
+                        <button key={d} onClick={() => setDifficulty(d)} className={`p-3 rounded-lg font-semibold transition ${styleClasses}`}>
+                            {d === 'HOTS (Achiever Section)' ? 'HOTS (Achievers)' : d}
+                        </button>
+                    );
+                })}
             </div>
           </div>
         </div>

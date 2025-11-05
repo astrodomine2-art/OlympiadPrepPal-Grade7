@@ -41,7 +41,7 @@ const singleQuestionSchema = {
       },
       difficulty: {
           type: Type.STRING,
-          description: "The difficulty of the question (Easy, Medium, or Hard)."
+          description: "The difficulty of the question (Easy, Medium, Hard, or HOTS (Achiever Section))."
       },
       imageSvg: {
         type: Type.STRING,
@@ -58,10 +58,19 @@ const questionSchema = {
 
 
 export const generateQuestions = async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, existingIds: string[]): Promise<Question[]> => {
+    let difficultyInstruction = `The difficulty level must be: ${difficulty}.`;
+    if (difficulty === 'HOTS (Achiever Section)') {
+        difficultyInstruction = `
+            The questions must be of a very high difficulty, specifically designed for the 'Achiever Section' of the Olympiad.
+            These should be 'Higher-Order Thinking Skills' (HOTS) questions that require multi-step reasoning, synthesis of concepts, and advanced problem-solving skills.
+            These questions often carry more weight in the exam, so ensure they are challenging.
+        `;
+    }
+
     const prompt = `
         Generate ${count} quiz questions for a Grade 7 student preparing for the ${subject} Olympiad exam.
         The questions should cover the following topics: ${topics.join(', ')}.
-        The difficulty level must be: ${difficulty}.
+        ${difficultyInstruction}
         Ensure all questions are unique and factually correct. Revalidate all questions and answers.
         Use proper mathematical and scientific symbols using Unicode characters that render directly in HTML.
         If a question requires a diagram, generate a clean, simple, and accurate SVG string and include it in the 'imageSvg' field. Do not find external image URLs.
