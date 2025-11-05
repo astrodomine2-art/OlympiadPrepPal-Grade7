@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Question, QuizResult, Subject, Difficulty, Grade } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
-import { generateQuestions } from './services/geminiService';
+import { generateQuestions, revalidateQuestion } from './services/geminiService';
 
 import QuizSetup from './components/QuizSetup';
 import Quiz from './components/Quiz';
@@ -156,27 +156,84 @@ const App: React.FC = () => {
     }
   }, [history, questionBank, setQuestionBank]);
   
-  const handleQuizComplete = useCallback((result: QuizResult) => {
-    const resultWithGrade = { ...result, grade: quizGrade };
-    setCurrentResult(resultWithGrade);
-    setHistory(prevHistory => {
-        const updatedHistory = [...prevHistory, resultWithGrade];
-        if (updatedHistory.length > 10) {
-            // Keep only the last 10 reports
-            return updatedHistory.slice(updatedHistory.length - 10);
+  const handleQuizComplete = useCallback(async (result: QuizResult) => {
+    // For custom quizzes, revalidate incorrect answers before showing the report.
+    if (!result.isMock) {
+        setLoadingState({ active: true, message: 'AI is verifying your answers...', progress: 0 });
+        try {
+            const originalQuestions = result.questions;
+            const incorrectIndices = originalQuestions
+                .map((q, i) => result.userAnswers[i] !== q.correctAnswerIndex ? i : -1)
+                .filter(i => i !== -1);
+
+            // If all answers are correct, no need to revalidate.
+            if (incorrectIndices.length === 0) {
+                const finalResult = { ...result, grade: quizGrade, originalQuestions: originalQuestions };
+                setCurrentResult(finalResult);
+                setHistory(prev => [...prev, finalResult].slice(-10));
+                setView('report');
+                setLoadingState({ active: false, message: '', progress: 0 });
+                return;
+            }
+
+            const finalQuestions = [...originalQuestions];
+            let revalidatedCount = 0;
+            const numToRevalidate = incorrectIndices.length;
+
+            const revalidationPromises = incorrectIndices.map(async (index) => {
+                const validatedQ = await revalidateQuestion(originalQuestions[index]);
+                finalQuestions[index] = validatedQ;
+                revalidatedCount++;
+                setLoadingState(prev => ({
+                    ...prev,
+                    progress: Math.round((revalidatedCount / numToRevalidate) * 100),
+                    message: `AI is verifying your answers... (${revalidatedCount}/${numToRevalidate})`
+                }));
+            });
+
+            await Promise.all(revalidationPromises);
+
+            const finalScore = finalQuestions.reduce((acc, q, index) => {
+                return result.userAnswers[index] === q.correctAnswerIndex ? acc + 1 : acc;
+            }, 0);
+
+            const finalResult: QuizResult = {
+                ...result,
+                questions: finalQuestions,
+                score: finalScore,
+                originalQuestions: originalQuestions,
+                grade: quizGrade,
+            };
+
+            setCurrentResult(finalResult);
+            setHistory(prev => [...prev, finalResult].slice(-10));
+            setView('report');
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to revalidate quiz answers.");
+            setView('setup');
+        } finally {
+            setLoadingState({ active: false, message: '', progress: 0 });
         }
-        return updatedHistory;
-    });
-    setView('report');
+    } else {
+        // For mock exams, revalidation was done in the background.
+        const resultWithGrade = { ...result, grade: quizGrade };
+        setCurrentResult(resultWithGrade);
+        setHistory(prev => [...prev, resultWithGrade].slice(-10));
+        setView('report');
+    }
   }, [setHistory, quizGrade]);
   
-  const handleQuestionRevalidated = (questionIndex: number, updatedQuestion: Question) => {
+  const handleQuestionRevalidated = useCallback((questionIndex: number, updatedQuestion: Question) => {
     setQuizQuestions(currentQuestions => {
-        const newQuestions = [...currentQuestions];
-        newQuestions[questionIndex] = updatedQuestion;
-        return newQuestions;
+        if (currentQuestions[questionIndex] && JSON.stringify(currentQuestions[questionIndex]) !== JSON.stringify(updatedQuestion)) {
+            const newQuestions = [...currentQuestions];
+            newQuestions[questionIndex] = updatedQuestion;
+            return newQuestions;
+        }
+        return currentQuestions;
     });
-  };
+  }, []);
   
   const handleViewHistory = () => {
     setView('history');

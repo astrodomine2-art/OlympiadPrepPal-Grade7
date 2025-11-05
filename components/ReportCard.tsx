@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { QuizResult, Question } from '../types';
 import { getImprovementSuggestions } from '../services/geminiService';
 import Button from './common/Button';
@@ -15,6 +15,31 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
   const [suggestions, setSuggestions] = useState<string>('');
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
   const [shownExplanations, setShownExplanations] = useState<Set<string>>(new Set());
+
+  const { hasBeenRegraded, originalScore, questionsChanged } = useMemo(() => {
+    if (!result.originalQuestions) {
+        return { hasBeenRegraded: false, originalScore: result.score, questionsChanged: 0 };
+    }
+
+    const calculatedOriginalScore = result.userAnswers.reduce((acc, answer, index) => {
+        const originalQ = result.originalQuestions![index];
+        if (originalQ && answer === originalQ.correctAnswerIndex) {
+            return acc + 1;
+        }
+        return acc;
+    }, 0);
+
+    const changedCount = result.questions.reduce((acc, currentQ, index) => {
+        const originalQ = result.originalQuestions![index];
+        if (originalQ && JSON.stringify(currentQ) !== JSON.stringify(originalQ)) {
+            return acc + 1;
+        }
+        return acc;
+    }, 0);
+    
+    return { hasBeenRegraded: true, originalScore: calculatedOriginalScore, questionsChanged: changedCount };
+
+  }, [result]);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -60,7 +85,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/^\s*[•*-]\s(.*$)/gim, '<li>$1</li>')
       .replace(/<\/li>\n<li>/g, '</li><li>') // Join consecutive list items
-      .replace(/(<li>.*<\/li>)/gs, '<ul class="space-y-2">$1</ul>') // Wrap in ul
+      .replace(/(<li>.*<\/li>)/gs, '<ul class="space-y-2 list-disc pl-6">$1</ul>') // Wrap in ul
       .replace(/\n/g, '<br />'); // Convert remaining newlines
 
     return <div dangerouslySetInnerHTML={{ __html: html }} />;
@@ -71,6 +96,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
     <div className="w-full max-w-5xl mx-auto p-4 space-y-6">
       <Card>
         <h1 className="text-3xl md:text-4xl font-extrabold text-center text-slate-800 mb-6">{result.isMock ? 'Mock Exam' : 'Quiz'} Report (Grade {result.grade})</h1>
+        
+        {hasBeenRegraded && originalScore !== result.score && (
+            <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-800 p-4 rounded-lg my-6 text-center shadow-md">
+                <p className="font-bold text-lg">Score Adjusted!</p>
+                <p>After AI revalidation, your score was updated from {originalScore} to {result.score}.</p>
+                {questionsChanged > 0 && <p className="text-sm mt-1">{questionsChanged} question(s) were automatically corrected for accuracy.</p>}
+            </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-slate-600 text-sm font-semibold">SCORE</p>
@@ -101,9 +135,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
             const userAnswer = result.userAnswers[index];
             const isCorrect = userAnswer === q.correctAnswerIndex;
             const isExplanationVisible = shownExplanations.has(q.id);
-            
+            const originalQuestion = result.originalQuestions?.[index];
+            const wasChanged = hasBeenRegraded && originalQuestion && JSON.stringify(q) !== JSON.stringify(originalQuestion);
+
             return (
               <div key={q.id} className={`p-4 rounded-lg border-l-4 ${isCorrect ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                {wasChanged && (
+                  <div className="mb-3 p-2 bg-amber-100 text-amber-800 text-sm rounded-md font-semibold flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                      This question was corrected by AI.
+                  </div>
+                )}
                 <p className="font-bold text-slate-800 mb-2">Q{index + 1}: {q.questionText}</p>
                 {q.imageSvg && 
                     <img 

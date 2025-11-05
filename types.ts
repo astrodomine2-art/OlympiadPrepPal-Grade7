@@ -27,14 +27,15 @@ export interface Question {
 export interface QuizResult {
   id: string;
   date: string;
-  questions: Question[];
+  questions: Question[]; // These are the FINAL, validated questions
   userAnswers: (number | null)[];
-  score: number;
+  score: number; // This is the FINAL, regraded score
   subject: Subject;
   topics: string[];
   timeTaken: number; // in seconds
   isMock: boolean;
   grade: Grade;
+  originalQuestions?: Question[]; // The state of questions before any revalidation.
 }
 
 export const IMO_TOPICS = [

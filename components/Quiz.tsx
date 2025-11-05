@@ -25,6 +25,16 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   const [revalidatedIndices, setRevalidatedIndices] = useState<Set<number>>(new Set());
   const messageTimerRef = useRef<number | null>(null);
 
+  const originalQuestionsRef = useRef(questions);
+  const autoValidationStartedRef = useRef(false);
+  const [revalidationProgress, setRevalidationProgress] = useState(0);
+
+  const prevQuestionsRef = useRef<Question[]>();
+  useEffect(() => {
+    prevQuestionsRef.current = questions;
+  });
+  const prevQuestions = prevQuestionsRef.current;
+
   useEffect(() => {
     // Sync userAnswers array with questions array, crucial for background question fetching.
     setUserAnswers(prevAnswers => {
@@ -55,6 +65,45 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     setStartTime(Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMock]);
+  
+  useEffect(() => {
+    // Show notification if the current question is updated by the background revalidation
+    if (isMock && prevQuestions && prevQuestions.length > 0 &&
+        prevQuestions[currentQuestionIndex] && questions[currentQuestionIndex] &&
+        JSON.stringify(prevQuestions[currentQuestionIndex]) !== JSON.stringify(questions[currentQuestionIndex])) {
+
+        if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+        
+        setRevalidationState({ status: 'success', message: 'This question was just updated by our AI for accuracy!' });
+        
+        messageTimerRef.current = window.setTimeout(() => {
+            setRevalidationState({ status: 'idle', message: '' });
+        }, 4000);
+    }
+  }, [questions, currentQuestionIndex, prevQuestions, isMock]);
+  
+  useEffect(() => {
+    if (isMock && questions.length > 0 && !autoValidationStartedRef.current) {
+        autoValidationStartedRef.current = true;
+        const revalidateAll = async () => {
+            const initialQuestions = originalQuestionsRef.current;
+            const promises = initialQuestions.map((q, index) =>
+                revalidateQuestion(q)
+                    .then(validatedQ => {
+                        onQuestionRevalidated(index, validatedQ);
+                    })
+                    .catch(err => {
+                        console.error(`Failed to revalidate question ${index}:`, err);
+                    })
+                    .finally(() => {
+                        setRevalidationProgress(p => p + 1);
+                    })
+            );
+            await Promise.allSettled(promises);
+        };
+        revalidateAll();
+    }
+  }, [isMock, questions.length, onQuestionRevalidated]);
 
   useEffect(() => {
     return () => {
@@ -85,11 +134,11 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
     const finalAnswers = [...userAnswers];
     finalAnswers[currentQuestionIndex] = selectedOption;
-    // Ensure the answers array is the same length as questions array for accuracy
     while(finalAnswers.length < questions.length) {
         finalAnswers.push(null);
     }
     
+    // The 'questions' prop contains the latest, revalidated questions.
     const score = finalAnswers.reduce((acc, answer, index) => {
       if (index < questions.length && answer === questions[index].correctAnswerIndex) {
           return acc + 1;
@@ -98,9 +147,6 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     }, 0);
     const timeTaken = Math.floor((Date.now() - startTime) / 1000);
 
-    // FIX: Added grade to the result payload to conform to the QuizResult type.
-    // Also added a guard to prevent crashes if questions aren't loaded and
-    // removed optional chaining from `subject` for type safety.
     if (!questions || questions.length === 0) {
       console.error('handleSubmit called without questions.');
       return;
@@ -109,7 +155,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     onQuizComplete({
       id: new Date().toISOString(),
       date: new Date().toLocaleString(),
-      questions,
+      questions, // Pass the final, validated questions
       userAnswers: finalAnswers,
       score,
       subject: questions[0].subject,
@@ -117,6 +163,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
       timeTaken,
       isMock,
       grade: questions[0].grade,
+      originalQuestions: isMock ? originalQuestionsRef.current : undefined,
     });
   };
   
@@ -169,6 +216,11 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
+      {isMock && revalidationProgress < questions.length && (
+         <div className="text-center text-sm text-slate-600 mb-4 p-2 bg-blue-50 rounded-lg animate-pulse">
+           <p>🤖 AI is double-checking questions for accuracy... ({revalidationProgress}/{questions.length})</p>
+         </div>
+      )}
       <Card>
         <div className="flex justify-between items-center mb-4 border-b pb-4">
           <h2 className="text-xl font-bold text-slate-700">Question {currentQuestionIndex + 1} of {questions.length}</h2>

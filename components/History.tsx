@@ -150,28 +150,36 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }
         <Card>
             <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">Performance Trends</h2>
             <div className="space-y-6">
-                {Object.entries(trends).map(([subject, subjectData]) => (
+                {Object.entries(trends).map(([subject, subjectData]) => {
+                    // FIX: Cast `subjectData` which is inferred as `unknown` by Object.entries to its correct type to resolve property access errors.
+                    const typedSubjectData = subjectData as TrendData[string];
+                    return (
                     <div key={subject}>
                         <h3 className="text-xl font-bold text-slate-800">{subject}</h3>
                         <div className="flex items-center space-x-2 my-2 p-2 bg-slate-100 rounded-md">
                             <span className="font-semibold text-slate-600">Overall Performance:</span>
-                            <TrendIndicator trend={subjectData.overall.trend} />
+                            <TrendIndicator trend={typedSubjectData.overall.trend} />
                         </div>
                         <div className="ml-2 mt-3 space-y-1">
                             <h4 className="font-semibold text-slate-600 mb-1">Topic Breakdown:</h4>
-                            {Object.entries(subjectData.topics).map(([topic, topicData]) => (
+                            {Object.entries(typedSubjectData.topics).map(([topic, topicData]) => {
+                                // FIX: Cast `topicData` which is inferred as `unknown` to its correct type.
+                                const typedTopicData = topicData as { trend: Trend; scores: number[] };
+                                return (
                                 <div key={topic} className="flex justify-between items-center text-sm">
                                     <span className="text-slate-700">{topic}</span>
-                                    {topicData.scores.length > 0 ? (
-                                        <TrendIndicator trend={topicData.trend} />
+                                    {typedTopicData.scores.length > 0 ? (
+                                        <TrendIndicator trend={typedTopicData.trend} />
                                     ) : (
                                         <span className="text-slate-400 italic">Not practiced</span>
                                     )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </Card>
       )}

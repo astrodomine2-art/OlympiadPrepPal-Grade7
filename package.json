@@ -2,7 +2,7 @@
 {
   "name": "olympiad-prep-pal",
   "version": "1.0.0",
-  "description": "An AI-powered quiz platform to help Grade 7 students prepare for SOF IMO and NSO Olympiad exams.",
+  "description": "An AI-powered quiz platform to help Grade 6 & 7 students prepare for SOF IMO and NSO Olympiad exams.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
