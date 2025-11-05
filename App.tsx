@@ -16,7 +16,11 @@ const App: React.FC = () => {
   const [currentResult, setCurrentResult] = useState<QuizResult | null>(null);
   const [history, setHistory] = useLocalStorage<QuizResult[]>('quizHistory', []);
   const [questionBank, setQuestionBank] = useLocalStorage<Question[]>('questionBank', []);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingState, setLoadingState] = useState<{
+    active: boolean;
+    message: string;
+    progress: number;
+  }>({ active: false, message: '', progress: 0 });
   const [error, setError] = useState<string | null>(null);
   const [isMock, setIsMock] = useState<boolean>(false);
 
@@ -43,11 +47,14 @@ const App: React.FC = () => {
   }, []); // Run only once on mount
 
   const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean) => {
-    setIsLoading(true);
+    setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
     setError(null);
     setIsMock(isMockFlag);
 
     try {
+        await new Promise(res => setTimeout(res, 300));
+        setLoadingState(prev => ({ ...prev, message: 'Searching our question bank...', progress: 10 }));
+
         const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
 
         // 1. Filter local question bank from localStorage
@@ -58,18 +65,25 @@ const App: React.FC = () => {
             !existingQuestionIds.has(q.id)
         );
 
-        // Shuffle to get random questions
         localQuestions.sort(() => Math.random() - 0.5);
 
         const questionsFromBank = localQuestions.slice(0, count);
         const remainingCount = count - questionsFromBank.length;
 
+        await new Promise(res => setTimeout(res, 300));
+        setLoadingState(prev => ({ ...prev, message: `Found ${questionsFromBank.length} of ${count} questions locally.`, progress: 30 }));
+
         let aiQuestions: Question[] = [];
         if (remainingCount > 0) {
+            await new Promise(res => setTimeout(res, 300));
+            setLoadingState(prev => ({ ...prev, message: `Asking our AI for ${remainingCount} new questions...`, progress: 40 }));
+            
             const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
             aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds);
             
-            // Add newly generated questions to the main bank
+            await new Promise(res => setTimeout(res, 300));
+            setLoadingState(prev => ({ ...prev, progress: 80, message: 'Received new questions from AI!' }));
+
             if (aiQuestions.length > 0) {
               setQuestionBank(prevBank => {
                   const newQuestionsToAdd = aiQuestions.filter(
@@ -90,17 +104,23 @@ const App: React.FC = () => {
              throw new Error("Could not find or generate any questions for the selected criteria. Please try different topics or difficulties.");
         }
         
-        // Shuffle the final list to mix local and AI questions
+        await new Promise(res => setTimeout(res, 300));
+        setLoadingState(prev => ({ ...prev, progress: 90, message: 'Finalizing and shuffling...' }));
         finalQuestions.sort(() => Math.random() - 0.5);
 
         setQuizQuestions(finalQuestions);
+
+        await new Promise(res => setTimeout(res, 300));
+        setLoadingState(prev => ({ ...prev, progress: 100, message: 'All set!' }));
+
+        await new Promise(res => setTimeout(res, 500));
         setView('quiz');
 
     } catch (err) {
         setError(err instanceof Error ? err.message : "An unknown error occurred.");
         setView('setup');
     } finally {
-        setIsLoading(false);
+        setLoadingState({ active: false, message: '', progress: 0 });
     }
   }, [history, questionBank, setQuestionBank]);
   
@@ -133,10 +153,10 @@ const App: React.FC = () => {
   };
   
   const renderContent = () => {
-    if (isLoading) {
+    if (loadingState.active) {
       return (
         <div className="flex items-center justify-center h-screen">
-          <Spinner message="Generating your custom quiz... This might take a moment." />
+          <Spinner message={loadingState.message} progress={loadingState.progress} />
         </div>
       );
     }
