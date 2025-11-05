@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { QuizResult, Question } from '../types';
 import { getImprovementSuggestions } from '../services/geminiService';
@@ -15,6 +14,7 @@ interface ReportCardProps {
 const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQuiz }) => {
   const [suggestions, setSuggestions] = useState<string>('');
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
+  const [shownExplanations, setShownExplanations] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -27,6 +27,18 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
     fetchSuggestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
+  
+  const handleToggleExplanation = (questionId: string) => {
+    setShownExplanations(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(questionId)) {
+            newSet.delete(questionId);
+        } else {
+            newSet.add(questionId);
+        }
+        return newSet;
+    });
+  };
 
   const percentage = Math.round((result.score / result.questions.length) * 100);
 
@@ -88,6 +100,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
           {result.questions.map((q, index) => {
             const userAnswer = result.userAnswers[index];
             const isCorrect = userAnswer === q.correctAnswerIndex;
+            const isExplanationVisible = shownExplanations.has(q.id);
+            
             return (
               <div key={q.id} className={`p-4 rounded-lg border-l-4 ${isCorrect ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
                 <p className="font-bold text-slate-800 mb-2">Q{index + 1}: {q.questionText}</p>
@@ -106,10 +120,24 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
                     return <p key={optIndex} className={optionClass}>{String.fromCharCode(65 + optIndex)}. {opt}</p>;
                   })}
                 </div>
-                {!isCorrect && <div className="mt-3 pt-3 border-t border-red-200">
+                
+                {isCorrect && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => handleToggleExplanation(q.id)}
+                      className="text-sm font-semibold text-blue-600 hover:underline focus:outline-none"
+                    >
+                      {isExplanationVisible ? 'Hide Explanation' : 'Show Explanation'}
+                    </button>
+                  </div>
+                )}
+                
+                {(!isCorrect || isExplanationVisible) && (
+                  <div className={`mt-3 pt-3 border-t ${isCorrect ? 'border-green-200' : 'border-red-200'}`}>
                     <p className="font-semibold text-slate-700">Explanation:</p>
                     <p className="text-slate-600">{q.explanation}</p>
-                </div>}
+                  </div>
+                )}
               </div>
             );
           })}
