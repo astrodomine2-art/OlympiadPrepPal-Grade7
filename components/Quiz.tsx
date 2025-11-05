@@ -13,7 +13,7 @@ interface QuizProps {
 
 const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuestionRevalidated }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<(number | null)[]>(Array(questions.length).fill(null));
+  const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [startTime, setStartTime] = useState(Date.now());
   const timerIntervalRef = useRef<number | null>(null);
@@ -24,6 +24,20 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   const [revalidationState, setRevalidationState] = useState<{ status: 'idle' | 'loading' | 'success' | 'error', message: string }>({ status: 'idle', message: '' });
   const [revalidatedIndices, setRevalidatedIndices] = useState<Set<number>>(new Set());
   const messageTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Sync userAnswers array with questions array, crucial for background question fetching.
+    setUserAnswers(prevAnswers => {
+        if (prevAnswers.length < questions.length) {
+            const newAnswers = [...prevAnswers];
+            while(newAnswers.length < questions.length) {
+                newAnswers.push(null);
+            }
+            return newAnswers;
+        }
+        return prevAnswers;
+    });
+  }, [questions]);
 
   useEffect(() => {
     if (isMock) {
@@ -71,8 +85,16 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
     const finalAnswers = [...userAnswers];
     finalAnswers[currentQuestionIndex] = selectedOption;
+    // Ensure the answers array is the same length as questions array for accuracy
+    while(finalAnswers.length < questions.length) {
+        finalAnswers.push(null);
+    }
+    
     const score = finalAnswers.reduce((acc, answer, index) => {
-      return answer === questions[index].correctAnswerIndex ? acc + 1 : acc;
+      if (index < questions.length && answer === questions[index].correctAnswerIndex) {
+          return acc + 1;
+      }
+      return acc;
     }, 0);
     const timeTaken = Math.floor((Date.now() - startTime) / 1000);
 
@@ -82,7 +104,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
       questions,
       userAnswers: finalAnswers,
       score,
-      subject: questions[0].subject,
+      subject: questions[0]?.subject,
       topics: [...new Set(questions.map(q => q.topic))],
       timeTaken,
       isMock,
@@ -122,6 +144,16 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   };
 
   const currentQuestion = questions[currentQuestionIndex];
+  
+  if (!currentQuestion) {
+      // Handles the edge case where questions are still loading.
+      return (
+          <div className="flex justify-center items-center h-64">
+              <p>Loading question...</p>
+          </div>
+      )
+  }
+
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
   const isRevalidating = revalidationState.status === 'loading';
   const hasBeenRevalidated = revalidatedIndices.has(currentQuestionIndex);

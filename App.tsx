@@ -46,28 +46,58 @@ const App: React.FC = () => {
   }, []); // Run only once on mount
 
   const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean) => {
-    setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
     setError(null);
     setIsMock(isMockFlag);
+    setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
+    
+    const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
+    
+    // 1. Filter local question bank from localStorage
+    const localQuestions = questionBank.filter(q =>
+        q.subject === subject &&
+        topics.includes(q.topic) &&
+        q.difficulty === difficulty &&
+        !existingQuestionIds.has(q.id)
+    );
+    
+    localQuestions.sort(() => Math.random() - 0.5);
+    const questionsFromBank = localQuestions.slice(0, count);
+    const remainingCount = count - questionsFromBank.length;
 
+    // Fast path: For long quizzes (>5 questions), start immediately with local questions
+    // and fetch the rest in the background.
+    if (count > 5 && questionsFromBank.length > 0) {
+        setQuizQuestions(questionsFromBank);
+        setView('quiz');
+        setLoadingState({ active: false, message: '', progress: 0 });
+
+        // --- Background Fetch ---
+        if (remainingCount > 0) {
+            try {
+                const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
+                const aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds);
+                
+                if (aiQuestions.length > 0) {
+                    setQuizQuestions(prevQuestions => [...prevQuestions, ...aiQuestions]);
+                    setQuestionBank(prevBank => {
+                        const newQuestionsToAdd = aiQuestions.filter(
+                            aiQ => !prevBank.some(bankQ => bankQ.id === aiQ.id)
+                        );
+                        return [...prevBank, ...newQuestionsToAdd];
+                    });
+                }
+            } catch (backgroundError) {
+                console.error("Failed to fetch background questions:", backgroundError);
+                // This is a non-critical error as the user already has a quiz.
+            }
+        }
+        return; // End of fast path logic.
+    }
+
+    // Slow path: For short quizzes or when no local questions are found, load everything upfront.
     try {
         await new Promise(res => setTimeout(res, 300));
         setLoadingState(prev => ({ ...prev, message: 'Searching our question bank...', progress: 10 }));
-
-        const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
-
-        // 1. Filter local question bank from localStorage
-        let localQuestions = questionBank.filter(q =>
-            q.subject === subject &&
-            topics.includes(q.topic) &&
-            q.difficulty === difficulty &&
-            !existingQuestionIds.has(q.id)
-        );
-
-        localQuestions.sort(() => Math.random() - 0.5);
-
-        const questionsFromBank = localQuestions.slice(0, count);
-        const remainingCount = count - questionsFromBank.length;
 
         await new Promise(res => setTimeout(res, 300));
         setLoadingState(prev => ({ ...prev, message: `Found ${questionsFromBank.length} of ${count} questions locally.`, progress: 30 }));
