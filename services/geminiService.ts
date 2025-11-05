@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Subject, Difficulty } from '../types';
 
@@ -69,6 +70,7 @@ export const generateQuestions = async (subject: Subject, topics: string[], coun
 
     try {
         const response = await ai.models.generateContent({
+            // FIX: Use current recommended model 'gemini-2.5-flash' instead of deprecated 'gemini-1.5-flash'
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
@@ -104,6 +106,7 @@ export const getImprovementSuggestions = async (incorrectlyAnswered: Question[])
     
     try {
         const response = await ai.models.generateContent({
+            // FIX: Use current recommended model 'gemini-2.5-flash' instead of deprecated 'gemini-1.5-flash'
             model: "gemini-2.5-flash",
             contents: prompt,
         });

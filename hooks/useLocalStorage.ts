@@ -1,7 +1,8 @@
 
 import { useState, useEffect } from 'react';
 
-function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: T) => void] {
+// FIX: Updated the hook's return type to support functional updates for the setter, resolving a TypeScript error in App.tsx.
+function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key);
@@ -12,7 +13,8 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: T) => vo
     }
   });
 
-  const setValue = (value: T) => {
+  // FIX: Updated the setValue function parameter type to accept either a value or a state updater function.
+  const setValue = (value: T | ((val: T) => T)) => {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);

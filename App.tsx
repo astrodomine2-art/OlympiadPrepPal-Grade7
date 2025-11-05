@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState, useCallback, useEffect } from 'react';
 import { AppView, Question, QuizResult, Subject, Difficulty } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import { generateQuestions } from './services/geminiService';
-import { QUESTION_BANK } from './questionBank';
 
 import QuizSetup from './components/QuizSetup';
 import Quiz from './components/Quiz';
@@ -15,9 +15,32 @@ const App: React.FC = () => {
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentResult, setCurrentResult] = useState<QuizResult | null>(null);
   const [history, setHistory] = useLocalStorage<QuizResult[]>('quizHistory', []);
+  const [questionBank, setQuestionBank] = useLocalStorage<Question[]>('questionBank', []);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isMock, setIsMock] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Seed the question bank from JSON on first load if it's empty.
+    const seedQuestionBank = async () => {
+      if (questionBank.length === 0) {
+        try {
+          const response = await fetch('/questions.json');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data: Question[] = await response.json();
+          setQuestionBank(data);
+        } catch (err) {
+          console.error("Failed to load initial question bank:", err);
+          // Set a default empty array to avoid repeated fetch attempts on error
+          setQuestionBank([]); 
+        }
+      }
+    };
+    seedQuestionBank();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean) => {
     setIsLoading(true);
@@ -27,8 +50,8 @@ const App: React.FC = () => {
     try {
         const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
 
-        // 1. Filter local question bank
-        let localQuestions = QUESTION_BANK.filter(q =>
+        // 1. Filter local question bank from localStorage
+        let localQuestions = questionBank.filter(q =>
             q.subject === subject &&
             topics.includes(q.topic) &&
             q.difficulty === difficulty &&
@@ -43,14 +66,28 @@ const App: React.FC = () => {
 
         let aiQuestions: Question[] = [];
         if (remainingCount > 0) {
-            const allUsedIds = [...Array.from(existingQuestionIds), ...questionsFromBank.map(q => q.id)];
+            const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
             aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds);
+            
+            // Add newly generated questions to the main bank
+            if (aiQuestions.length > 0) {
+              setQuestionBank(prevBank => {
+                  const newQuestionsToAdd = aiQuestions.filter(
+                      aiQ => !prevBank.some(bankQ => bankQ.id === aiQ.id)
+                  );
+                  return [...prevBank, ...newQuestionsToAdd];
+              });
+            }
         }
 
         const finalQuestions = [...questionsFromBank, ...aiQuestions];
         
+        if (finalQuestions.length < count) {
+             console.warn(`Could only find ${finalQuestions.length} questions, but ${count} were requested.`);
+        }
+
         if (finalQuestions.length === 0) {
-             throw new Error("Could not find or generate any questions for the selected criteria. Please try different topics.");
+             throw new Error("Could not find or generate any questions for the selected criteria. Please try different topics or difficulties.");
         }
         
         // Shuffle the final list to mix local and AI questions
@@ -65,7 +102,7 @@ const App: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
-  }, [history]);
+  }, [history, questionBank, setQuestionBank]);
   
   const handleQuizComplete = useCallback((result: QuizResult) => {
     setCurrentResult(result);

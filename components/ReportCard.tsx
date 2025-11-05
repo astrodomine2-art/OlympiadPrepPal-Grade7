@@ -37,15 +37,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
   };
 
   const renderMarkdown = (text: string) => {
+    // FIX: Replaced the buggy markdown-to-HTML conversion with a more robust implementation.
+    // The new implementation correctly handles list blocks and different bullet point styles (*, -, •),
+    // and uses non-greedy matching for bold and italic styles to prevent incorrect rendering.
     const html = text
       .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-slate-700 mt-4 mb-2">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-slate-800 mt-6 mb-3">$1</h2>')
       .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-extrabold text-slate-900 mt-8 mb-4">$1</h1>')
-      .replace(/\*\*(.*)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*)\*/g, '<em>$1</em>')
-      .replace(/• /g, '<li class="ml-5 list-disc">')
-      .replace(/\n/g, '<br />');
-    return <div dangerouslySetInnerHTML={{ __html: html.replace(/<li/g, '<ul class="space-y-2"><li').replace(/<\/li><br \/>(?!<li)/g, '</li></ul>') }} />;
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^\s*[•*-]\s(.*$)/gim, '<li>$1</li>')
+      .replace(/<\/li>\n<li>/g, '</li><li>') // Join consecutive list items
+      .replace(/(<li>.*<\/li>)/gs, '<ul class="space-y-2">$1</ul>') // Wrap in ul
+      .replace(/\n/g, '<br />'); // Convert remaining newlines
+
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
 

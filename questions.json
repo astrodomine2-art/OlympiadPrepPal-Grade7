@@ -1,0 +1,125 @@
+
+[
+  {
+    "id": "imo_num_001",
+    "questionText": "What is the sum of the first 10 prime numbers?",
+    "options": ["129", "100", "131", "127"],
+    "correctAnswerIndex": 0,
+    "explanation": "The first 10 prime numbers are 2, 3, 5, 7, 11, 13, 17, 19, 23, 29. Their sum is 2+3+5+7+11+13+17+19+23+29 = 129.",
+    "topic": "Number Systems",
+    "subject": "IMO",
+    "difficulty": "Easy"
+  },
+  {
+    "id": "imo_alg_001",
+    "questionText": "If 3x - 7 = 5x + 5, what is the value of x?",
+    "options": ["-6", "6", "-1", "1"],
+    "correctAnswerIndex": 0,
+    "explanation": "To solve for x, first subtract 3x from both sides: -7 = 2x + 5. Then, subtract 5 from both sides: -12 = 2x. Finally, divide by 2: x = -6.",
+    "topic": "Algebra",
+    "subject": "IMO",
+    "difficulty": "Medium"
+  },
+  {
+    "id": "imo_geo_001",
+    "questionText": "In a triangle, two angles are 45° and 75°. What is the measure of the third angle?",
+    "options": ["50°", "60°", "70°", "80°"],
+    "correctAnswerIndex": 1,
+    "explanation": "The sum of angles in a triangle is always 180°. So, the third angle is 180° - (45° + 75°) = 180° - 120° = 60°.",
+    "topic": "Geometry",
+    "subject": "IMO",
+    "difficulty": "Easy"
+  },
+   {
+    "id": "imo_geo_002_svg",
+    "questionText": "What is the area of the shaded region in the figure, if the outer square has a side length of 10 cm and the inner square has a side length of 6 cm?",
+    "options": ["36 cm²", "64 cm²", "100 cm²", "40 cm²"],
+    "correctAnswerIndex": 1,
+    "explanation": "Area of the outer square = 10 × 10 = 100 cm². Area of the inner square = 6 × 6 = 36 cm². The area of the shaded region is the difference between the two areas: 100 - 36 = 64 cm².",
+    "topic": "Mensuration",
+    "subject": "IMO",
+    "difficulty": "Medium",
+    "imageSvg": "<svg width=\"150\" height=\"150\" viewBox=\"0 0 100 100\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0 H100 V100 H0 Z\" fill=\"#60a5fa\" /><path d=\"M20 20 H80 V80 H20 Z\" fill=\"white\" /></svg>"
+  },
+  {
+    "id": "imo_lr_001",
+    "questionText": "Find the next number in the series: 3, 7, 15, 31, 63, ...",
+    "options": ["127", "125", "131", "97"],
+    "correctAnswerIndex": 0,
+    "explanation": "The pattern is ×2 + 1. (3×2)+1=7, (7×2)+1=15, (15×2)+1=31, (31×2)+1=63, so (63×2)+1=127.",
+    "topic": "Logical Reasoning",
+    "subject": "IMO",
+    "difficulty": "Medium"
+  },
+  {
+    "id": "imo_dh_001",
+    "questionText": "The mean of 5 numbers is 20. If one number is excluded, the mean of the remaining numbers becomes 23. What is the excluded number?",
+    "options": ["8", "12", "15", "20"],
+    "correctAnswerIndex": 0,
+    "explanation": "Sum of 5 numbers = 5 × 20 = 100. Sum of remaining 4 numbers = 4 × 23 = 92. The excluded number = 100 - 92 = 8.",
+    "topic": "Data Handling",
+    "subject": "IMO",
+    "difficulty": "Hard"
+  },
+  {
+    "id": "nso_phy_001",
+    "questionText": "Which of the following is the SI unit of electric current?",
+    "options": ["Volt", "Ohm", "Ampere", "Watt"],
+    "correctAnswerIndex": 2,
+    "explanation": "The SI unit for measuring electric current is the Ampere (A). Volt is for voltage, Ohm for resistance, and Watt for power.",
+    "topic": "Physics",
+    "subject": "NSO",
+    "difficulty": "Easy"
+  },
+  {
+    "id": "nso_che_001",
+    "questionText": "Which gas is most abundant in the Earth's atmosphere?",
+    "options": ["Oxygen", "Hydrogen", "Carbon Dioxide", "Nitrogen"],
+    "correctAnswerIndex": 3,
+    "explanation": "The Earth's atmosphere is composed of about 78% nitrogen, 21% oxygen, 0.9% argon, 0.04% carbon dioxide, and trace amounts of other gases.",
+    "topic": "Chemistry",
+    "subject": "NSO",
+    "difficulty": "Easy"
+  },
+  {
+    "id": "nso_bio_001",
+    "questionText": "What is the powerhouse of the cell?",
+    "options": ["Nucleus", "Ribosome", "Mitochondrion", "Cell Membrane"],
+    "correctAnswerIndex": 2,
+    "explanation": "The mitochondrion is known as the powerhouse of the cell because it generates most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy.",
+    "topic": "Biology",
+    "subject": "NSO",
+    "difficulty": "Medium"
+  },
+  {
+    "id": "nso_phy_002",
+    "questionText": "A car accelerates from rest to a speed of 20 m/s in 10 seconds. What is its acceleration?",
+    "options": ["2 m/s²", "0.5 m/s²", "200 m/s²", "5 m/s²"],
+    "correctAnswerIndex": 0,
+    "explanation": "Acceleration is the change in velocity divided by time. a = (final velocity - initial velocity) / time. a = (20 m/s - 0 m/s) / 10 s = 2 m/s².",
+    "topic": "Physics",
+    "subject": "NSO",
+    "difficulty": "Hard"
+  },
+  {
+    "id": "nso_lr_001",
+    "questionText": "If CLOCK is coded as KCOLC, how is STEPS coded?",
+    "options": ["SPETS", "SPEST", "SPSET", "SEPTS"],
+    "correctAnswerIndex": 0,
+    "explanation": "The letters of the word are written in reverse order. So, STEPS becomes SPETS.",
+    "topic": "Logical Reasoning",
+    "subject": "NSO",
+    "difficulty": "Easy"
+  },
+  {
+    "id": "nso_bio_002_svg",
+    "questionText": "Identify the part labeled 'X' in the diagram of the plant cell.",
+    "options": ["Cell Wall", "Vacuole", "Chloroplast", "Nucleus"],
+    "correctAnswerIndex": 2,
+    "explanation": "The part labeled 'X' is a chloroplast, which is the site of photosynthesis in plant cells. They contain chlorophyll, which gives plants their green color.",
+    "topic": "Biology",
+    "subject": "NSO",
+    "difficulty": "Medium",
+    "imageSvg": "<svg width=\"200\" height=\"150\" viewBox=\"0 0 200 150\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1\" y=\"1\" width=\"198\" height=\"148\" fill=\"#90ee90\" stroke=\"#006400\" stroke-width=\"2\" rx=\"15\" ry=\"15\" /><rect x=\"10\" y=\"10\" width=\"180\" height=\"130\" fill=\"#c8e6c9\" stroke=\"#006400\" stroke-width=\"1\" rx=\"10\" ry=\"10\" /><ellipse cx=\"150\" cy=\"75\" rx=\"30\" ry=\"45\" fill=\"#a52a2a\" /><text x=\"150\" y=\"80\" font-family=\"Arial\" font-size=\"12\" text-anchor=\"middle\" fill=\"white\">Nucleus</text><ellipse cx=\"50\" cy=\"50\" rx=\"15\" ry=\"10\" fill=\"#008000\" /><text x=\"50\" y=\"40\" font-family=\"Arial\" font-size=\"14\" font-weight=\"bold\" fill=\"black\">X</text><path d=\"M50 45 L 80 20 M 80 20 H 100\" stroke=\"black\" stroke-width=\"2\" fill=\"none\" /></svg>"
+  }
+]
