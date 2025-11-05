@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Question, QuizResult } from '../types';
+import { Question, QuizResult, Grade } from '../types';
 import { revalidateQuestion } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
@@ -98,16 +98,25 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     }, 0);
     const timeTaken = Math.floor((Date.now() - startTime) / 1000);
 
+    // FIX: Added grade to the result payload to conform to the QuizResult type.
+    // Also added a guard to prevent crashes if questions aren't loaded and
+    // removed optional chaining from `subject` for type safety.
+    if (!questions || questions.length === 0) {
+      console.error('handleSubmit called without questions.');
+      return;
+    }
+
     onQuizComplete({
       id: new Date().toISOString(),
       date: new Date().toLocaleString(),
       questions,
       userAnswers: finalAnswers,
       score,
-      subject: questions[0]?.subject,
+      subject: questions[0].subject,
       topics: [...new Set(questions.map(q => q.topic))],
       timeTaken,
       isMock,
+      grade: questions[0].grade,
     });
   };
   

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppView, Question, QuizResult, Subject, Difficulty } from './types';
+import { AppView, Question, QuizResult, Subject, Difficulty, Grade } from './types';
 import useLocalStorage from './hooks/useLocalStorage';
 import { generateQuestions } from './services/geminiService';
 
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   }>({ active: false, message: '', progress: 0 });
   const [error, setError] = useState<string | null>(null);
   const [isMock, setIsMock] = useState<boolean>(false);
+  const [quizGrade, setQuizGrade] = useState<Grade>(7);
 
   useEffect(() => {
     // Seed the question bank from JSON on first load if it's empty.
@@ -45,9 +46,10 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
-  const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean) => {
+  const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean, grade: Grade) => {
     setError(null);
     setIsMock(isMockFlag);
+    setQuizGrade(grade);
     setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
     
     const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
@@ -55,6 +57,7 @@ const App: React.FC = () => {
     // 1. Filter local question bank from localStorage
     const localQuestions = questionBank.filter(q =>
         q.subject === subject &&
+        q.grade === grade &&
         topics.includes(q.topic) &&
         q.difficulty === difficulty &&
         !existingQuestionIds.has(q.id)
@@ -75,7 +78,7 @@ const App: React.FC = () => {
         if (remainingCount > 0) {
             try {
                 const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
-                const aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds);
+                const aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds, grade);
                 
                 if (aiQuestions.length > 0) {
                     setQuizQuestions(prevQuestions => [...prevQuestions, ...aiQuestions]);
@@ -108,7 +111,7 @@ const App: React.FC = () => {
             setLoadingState(prev => ({ ...prev, message: `Asking our AI for ${remainingCount} new questions...`, progress: 40 }));
             
             const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
-            aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds);
+            aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds, grade);
             
             await new Promise(res => setTimeout(res, 300));
             setLoadingState(prev => ({ ...prev, progress: 80, message: 'Received new questions from AI!' }));
@@ -154,9 +157,10 @@ const App: React.FC = () => {
   }, [history, questionBank, setQuestionBank]);
   
   const handleQuizComplete = useCallback((result: QuizResult) => {
-    setCurrentResult(result);
+    const resultWithGrade = { ...result, grade: quizGrade };
+    setCurrentResult(resultWithGrade);
     setHistory(prevHistory => {
-        const updatedHistory = [...prevHistory, result];
+        const updatedHistory = [...prevHistory, resultWithGrade];
         if (updatedHistory.length > 10) {
             // Keep only the last 10 reports
             return updatedHistory.slice(updatedHistory.length - 10);
@@ -164,7 +168,7 @@ const App: React.FC = () => {
         return updatedHistory;
     });
     setView('report');
-  }, [setHistory]);
+  }, [setHistory, quizGrade]);
   
   const handleQuestionRevalidated = (questionIndex: number, updatedQuestion: Question) => {
     setQuizQuestions(currentQuestions => {

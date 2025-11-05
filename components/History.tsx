@@ -188,8 +188,9 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }
             {history.slice().reverse().map(result => (
               <div key={result.id} className="bg-slate-50 p-4 rounded-lg flex justify-between items-center shadow-sm">
                 <div>
-                  <p className="font-bold text-slate-700">{result.subject} {result.isMock ? "Mock Exam" : "Quiz"} ({result.topics.join(', ')})</p>
-                  <p className="text-sm text-slate-500">{result.date}</p>
+                  <p className="font-bold text-slate-700">{result.subject} (Grade {result.grade}) {result.isMock ? "Mock Exam" : "Quiz"}</p>
+                  <p className="text-sm text-slate-600">Topics: {result.topics.join(', ')}</p>
+                  <p className="text-sm text-slate-500 mt-1">{result.date}</p>
                 </div>
                 <div className="text-right">
                   <p className={`font-bold text-lg ${result.score / result.questions.length >= 0.7 ? 'text-green-600' : 'text-red-600'}`}>

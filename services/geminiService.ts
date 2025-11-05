@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Subject, Difficulty } from '../types';
+import { Question, Subject, Difficulty, Grade } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
@@ -43,12 +43,16 @@ const singleQuestionSchema = {
           type: Type.STRING,
           description: "The difficulty of the question (Easy, Medium, Hard, or HOTS (Achiever Section))."
       },
+      grade: {
+          type: Type.INTEGER,
+          description: "The grade level of the question (6 or 7)."
+      },
       imageSvg: {
         type: Type.STRING,
         description: "Optional. If the question requires a diagram, generate a valid, clean, and simple SVG string for it. The SVG should be self-contained and render correctly."
       }
     },
-    required: ["id", "questionText", "options", "correctAnswerIndex", "explanation", "topic", "subject", "difficulty"]
+    required: ["id", "questionText", "options", "correctAnswerIndex", "explanation", "topic", "subject", "difficulty", "grade"]
 };
 
 const questionSchema = {
@@ -57,7 +61,7 @@ const questionSchema = {
 };
 
 
-export const generateQuestions = async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, existingIds: string[]): Promise<Question[]> => {
+export const generateQuestions = async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, existingIds: string[], grade: Grade): Promise<Question[]> => {
     let difficultyInstruction = `The difficulty level must be: ${difficulty}.`;
     if (difficulty === 'HOTS (Achiever Section)') {
         difficultyInstruction = `
@@ -68,7 +72,7 @@ export const generateQuestions = async (subject: Subject, topics: string[], coun
     }
 
     const prompt = `
-        Generate ${count} quiz questions for a Grade 7 student preparing for the ${subject} Olympiad exam.
+        Generate ${count} quiz questions for a Grade ${grade} student preparing for the ${subject} Olympiad exam.
         The questions should cover the following topics: ${topics.join(', ')}.
         ${difficultyInstruction}
         Ensure all questions are unique and factually correct. Revalidate all questions and answers.
@@ -136,9 +140,10 @@ export const getImprovementSuggestions = async (incorrectlyAnswered: Question[])
     }
 
     const topics = incorrectlyAnswered.map(q => q.topic).join(', ');
+    const grade = incorrectlyAnswered[0]?.grade || 7;
 
     const prompt = `
-        A Grade 7 student preparing for the Olympiad exams answered some questions incorrectly.
+        A Grade ${grade} student preparing for the Olympiad exams answered some questions incorrectly.
         Here are the topics of the questions they got wrong: ${topics}.
         
         Based on these topics, provide a concise analysis of their weak areas and suggest 3-4 specific, actionable areas for improvement.

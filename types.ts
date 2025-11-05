@@ -9,6 +9,8 @@ export type AppView = 'setup' | 'quiz' | 'report' | 'history' | 'mock_exams';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'HOTS (Achiever Section)';
 
+export type Grade = 6 | 7;
+
 export interface Question {
   id: string;
   questionText: string;
@@ -18,6 +20,7 @@ export interface Question {
   topic: string;
   subject: Subject;
   difficulty: Difficulty;
+  grade: Grade;
   imageSvg?: string; // Changed from imageUrl to imageSvg
 }
 
@@ -31,6 +34,7 @@ export interface QuizResult {
   topics: string[];
   timeTaken: number; // in seconds
   isMock: boolean;
+  grade: Grade;
 }
 
 export const IMO_TOPICS = [
@@ -62,4 +66,48 @@ export const ICSO_TOPICS = [
     "HTML & CSS",
     "MS Office",
     "Logical Reasoning"
+];
+
+// --- Grade 6 Topics ---
+
+export const IMO_TOPICS_GRADE6 = [
+  "Knowing Our Numbers",
+  "Whole Numbers",
+  "Playing with Numbers",
+  "Basic Geometrical Ideas",
+  "Integers",
+  "Fractions and Decimals",
+  "Data Handling",
+  "Mensuration",
+  "Algebra",
+  "Ratio and Proportion"
+];
+
+export const NSO_TOPICS_GRADE6 = [
+  "Food and its Components",
+  "Sorting Materials",
+  "Separation of Substances",
+  "Changes Around Us",
+  "Living Organisms & Their Surroundings",
+  "Motion and Measurement",
+  "Light, Shadows and Reflection",
+  "Electricity and Circuits",
+  "Fun with Magnets"
+];
+
+export const IEO_TOPICS_GRADE6 = [
+    "Nouns and Pronouns",
+    "Verbs and Adverbs",
+    "Adjectives",
+    "Articles and Prepositions",
+    "Tenses",
+    "Synonyms and Antonyms"
+];
+
+export const ICSO_TOPICS_GRADE6 = [
+    "Input and Output Devices",
+    "History of Computers",
+    "MS Paint",
+    "Introduction to Windows",
+    "Basics of MS Word"
 ];

@@ -1,28 +1,37 @@
 import React, { useState } from 'react';
-import { Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, Difficulty } from '../types';
+import { Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, Difficulty, Grade, IMO_TOPICS_GRADE6, NSO_TOPICS_GRADE6, IEO_TOPICS_GRADE6, ICSO_TOPICS_GRADE6 } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
 
 interface QuizSetupProps {
-  onStartQuiz: (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMock: boolean) => void;
+  onStartQuiz: (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMock: boolean, grade: Grade) => void;
   onViewHistory: () => void;
 }
 
 const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => {
+  const [grade, setGrade] = useState<Grade>(7);
   const [subject, setSubject] = useState<Subject>(Subject.IMO);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [numQuestions, setNumQuestions] = useState<number>(10);
   const [difficulty, setDifficulty] = useState<Difficulty>('Medium');
 
   const topics = (() => {
-    switch(subject) {
-        case Subject.IMO: return IMO_TOPICS;
-        case Subject.NSO: return NSO_TOPICS;
-        case Subject.IEO: return IEO_TOPICS;
-        case Subject.ICSO: return ICSO_TOPICS;
-        default: return [];
-    }
+    const gradeTopics = grade === 7 
+        ? { IMO: IMO_TOPICS, NSO: NSO_TOPICS, IEO: IEO_TOPICS, ICSO: ICSO_TOPICS }
+        : { IMO: IMO_TOPICS_GRADE6, NSO: NSO_TOPICS_GRADE6, IEO: IEO_TOPICS_GRADE6, ICSO: ICSO_TOPICS_GRADE6 };
+    return gradeTopics[subject] || [];
   })();
+
+  const handleGradeChange = (newGrade: Grade) => {
+    setGrade(newGrade);
+    setSelectedTopics([]);
+    setSubject(Subject.IMO);
+  };
+  
+  const handleSubjectChange = (newSubject: Subject) => {
+    setSubject(newSubject);
+    setSelectedTopics([]);
+  };
 
   const handleTopicToggle = (topic: string) => {
     setSelectedTopics(prev =>
@@ -35,20 +44,37 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
       alert("Please select at least one topic.");
       return;
     }
-    onStartQuiz(subject, selectedTopics, numQuestions, difficulty, false);
+    onStartQuiz(subject, selectedTopics, numQuestions, difficulty, false, grade);
   };
   
   const handleStartMock = (mockNum: number) => {
      // For Grade 7, IMO has 35 questions. NSO, IEO, and ICSO have 50.
-     const mockQuestions = subject === Subject.IMO ? 35 : 50;
-     onStartQuiz(subject, topics, mockQuestions, 'Hard', true);
+     // For Grade 6, all Olympiads have fewer questions, we'll use a standard of 35.
+     const mockQuestions = grade === 7 ? (subject === Subject.IMO ? 35 : 50) : 35;
+     onStartQuiz(subject, topics, mockQuestions, 'Hard', true, grade);
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-8">
       <div className="text-center">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800">Olympiad Prep Pal Grade 7</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800">Olympiad Prep Pal</h1>
         <p className="mt-2 text-lg text-slate-600">Your AI-powered partner for SOF exam success!</p>
+      </div>
+      
+      <div className="flex justify-center mb-6 border-b-2 border-slate-200">
+        {[7, 6].map((g) => (
+            <button 
+                key={g}
+                onClick={() => handleGradeChange(g as Grade)}
+                className={`px-8 py-3 text-xl font-bold rounded-t-lg transition-colors focus:outline-none ${
+                    grade === g 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-transparent text-slate-500 hover:bg-slate-100'
+                }`}
+            >
+                Grade {g}
+            </button>
+        ))}
       </div>
       
       <Card>
@@ -58,16 +84,16 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
           <div>
             <label className="block text-lg font-semibold text-slate-700 mb-2">1. Select Subject</label>
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => { setSubject(Subject.IMO); setSelectedTopics([]); }} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.IMO ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
+              <button onClick={() => handleSubjectChange(Subject.IMO)} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.IMO ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                 IMO (Maths)
               </button>
-              <button onClick={() => { setSubject(Subject.NSO); setSelectedTopics([]); }} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.NSO ? 'bg-green-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
+              <button onClick={() => handleSubjectChange(Subject.NSO)} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.NSO ? 'bg-green-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                 NSO (Science)
               </button>
-              <button onClick={() => { setSubject(Subject.IEO); setSelectedTopics([]); }} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.IEO ? 'bg-yellow-500 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
+              <button onClick={() => handleSubjectChange(Subject.IEO)} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.IEO ? 'bg-yellow-500 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                 IEO (English)
               </button>
-              <button onClick={() => { setSubject(Subject.ICSO); setSelectedTopics([]); }} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.ICSO ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
+              <button onClick={() => handleSubjectChange(Subject.ICSO)} className={`w-full p-4 rounded-lg font-bold text-lg transition ${subject === Subject.ICSO ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                 ICSO (Cyber)
               </button>
             </div>

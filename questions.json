@@ -8,7 +8,8 @@
     "explanation": "The first 10 prime numbers are 2, 3, 5, 7, 11, 13, 17, 19, 23, 29. Their sum is 2+3+5+7+11+13+17+19+23+29 = 129.",
     "topic": "Number Systems",
     "subject": "IMO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
   {
     "id": "imo_alg_001",
@@ -18,7 +19,8 @@
     "explanation": "To solve for x, first subtract 3x from both sides: -7 = 2x + 5. Then, subtract 5 from both sides: -12 = 2x. Finally, divide by 2: x = -6.",
     "topic": "Algebra",
     "subject": "IMO",
-    "difficulty": "Medium"
+    "difficulty": "Medium",
+    "grade": 7
   },
   {
     "id": "imo_geo_001",
@@ -28,7 +30,8 @@
     "explanation": "The sum of angles in a triangle is always 180°. So, the third angle is 180° - (45° + 75°) = 180° - 120° = 60°.",
     "topic": "Geometry",
     "subject": "IMO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
    {
     "id": "imo_geo_002_svg",
@@ -39,6 +42,7 @@
     "topic": "Mensuration",
     "subject": "IMO",
     "difficulty": "Medium",
+    "grade": 7,
     "imageSvg": "<svg width=\"150\" height=\"150\" viewBox=\"0 0 100 100\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0 H100 V100 H0 Z\" fill=\"#60a5fa\" /><path d=\"M20 20 H80 V80 H20 Z\" fill=\"white\" /></svg>"
   },
   {
@@ -49,7 +53,8 @@
     "explanation": "The pattern is ×2 + 1. (3×2)+1=7, (7×2)+1=15, (15×2)+1=31, (31×2)+1=63, so (63×2)+1=127.",
     "topic": "Logical Reasoning",
     "subject": "IMO",
-    "difficulty": "Medium"
+    "difficulty": "Medium",
+    "grade": 7
   },
   {
     "id": "imo_dh_001",
@@ -59,7 +64,8 @@
     "explanation": "Sum of 5 numbers = 5 × 20 = 100. Sum of remaining 4 numbers = 4 × 23 = 92. The excluded number = 100 - 92 = 8.",
     "topic": "Data Handling",
     "subject": "IMO",
-    "difficulty": "Hard"
+    "difficulty": "Hard",
+    "grade": 7
   },
   {
     "id": "nso_phy_001",
@@ -69,7 +75,8 @@
     "explanation": "The SI unit for measuring electric current is the Ampere (A). Volt is for voltage, Ohm for resistance, and Watt for power.",
     "topic": "Physics",
     "subject": "NSO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
   {
     "id": "nso_che_001",
@@ -79,7 +86,8 @@
     "explanation": "The Earth's atmosphere is composed of about 78% nitrogen, 21% oxygen, 0.9% argon, 0.04% carbon dioxide, and trace amounts of other gases.",
     "topic": "Chemistry",
     "subject": "NSO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
   {
     "id": "nso_bio_001",
@@ -89,7 +97,8 @@
     "explanation": "The mitochondrion is known as the powerhouse of the cell because it generates most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy.",
     "topic": "Biology",
     "subject": "NSO",
-    "difficulty": "Medium"
+    "difficulty": "Medium",
+    "grade": 7
   },
   {
     "id": "nso_phy_002",
@@ -99,7 +108,8 @@
     "explanation": "Acceleration is the change in velocity divided by time. a = (final velocity - initial velocity) / time. a = (20 m/s - 0 m/s) / 10 s = 2 m/s².",
     "topic": "Physics",
     "subject": "NSO",
-    "difficulty": "Hard"
+    "difficulty": "Hard",
+    "grade": 7
   },
   {
     "id": "nso_lr_001",
@@ -109,7 +119,8 @@
     "explanation": "The letters of the word are written in reverse order. So, STEPS becomes SPETS.",
     "topic": "Logical Reasoning",
     "subject": "NSO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
   {
     "id": "nso_bio_002_svg",
@@ -120,6 +131,7 @@
     "topic": "Biology",
     "subject": "NSO",
     "difficulty": "Medium",
+    "grade": 7,
     "imageSvg": "<svg width=\"200\" height=\"150\" viewBox=\"0 0 200 150\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1\" y=\"1\" width=\"198\" height=\"148\" fill=\"#90ee90\" stroke=\"#006400\" stroke-width=\"2\" rx=\"15\" ry=\"15\" /><rect x=\"10\" y=\"10\" width=\"180\" height=\"130\" fill=\"#c8e6c9\" stroke=\"#006400\" stroke-width=\"1\" rx=\"10\" ry=\"10\" /><ellipse cx=\"150\" cy=\"75\" rx=\"30\" ry=\"45\" fill=\"#a52a2a\" /><text x=\"150\" y=\"80\" font-family=\"Arial\" font-size=\"12\" text-anchor=\"middle\" fill=\"white\">Nucleus</text><ellipse cx=\"50\" cy=\"50\" rx=\"15\" ry=\"10\" fill=\"#008000\" /><text x=\"50\" y=\"40\" font-family=\"Arial\" font-size=\"14\" font-weight=\"bold\" fill=\"black\">X</text><path d=\"M50 45 L 80 20 M 80 20 H 100\" stroke=\"black\" stroke-width=\"2\" fill=\"none\" /></svg>"
   },
   {
@@ -130,7 +142,8 @@
     "explanation": "Vague means of uncertain, indefinite, or unclear character or meaning. Precise is the direct opposite, meaning marked by exactness and accuracy of expression or detail.",
     "topic": "Vocabulary",
     "subject": "IEO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
   },
   {
     "id": "icso_fun_001",
@@ -140,6 +153,51 @@
     "explanation": "The CPU (Central Processing Unit) is responsible for executing instructions and performing calculations, which is why it is often referred to as the 'brain' of the computer.",
     "topic": "Computer Fundamentals",
     "subject": "ICSO",
-    "difficulty": "Easy"
+    "difficulty": "Easy",
+    "grade": 7
+  },
+  {
+    "id": "imo_frac_001_g6",
+    "questionText": "What is the result of 3/5 + 1/4?",
+    "options": ["4/9", "17/20", "12/20", "4/20"],
+    "correctAnswerIndex": 1,
+    "explanation": "To add fractions, find a common denominator, which is 20. (3/5) becomes (12/20) and (1/4) becomes (5/20). So, 12/20 + 5/20 = 17/20.",
+    "topic": "Fractions and Decimals",
+    "subject": "IMO",
+    "difficulty": "Easy",
+    "grade": 6
+  },
+  {
+    "id": "nso_food_001_g6",
+    "questionText": "Which of the following food components is the main source of energy for our body?",
+    "options": ["Vitamins", "Minerals", "Carbohydrates", "Water"],
+    "correctAnswerIndex": 2,
+    "explanation": "Carbohydrates are the body's primary source of energy. They are broken down into glucose, which cells use for fuel.",
+    "topic": "Food and its Components",
+    "subject": "NSO",
+    "difficulty": "Easy",
+    "grade": 6
+  },
+  {
+    "id": "ieo_noun_001_g6",
+    "questionText": "Identify the common noun in the sentence: 'The dog barked at the mailman.'",
+    "options": ["The", "dog", "barked", "mailman"],
+    "correctAnswerIndex": 1,
+    "explanation": "A common noun is a general name for a person, place, or thing. 'Dog' is a general name for an animal. 'Mailman' is also a common noun, but 'dog' is the first one listed in the options.",
+    "topic": "Nouns and Pronouns",
+    "subject": "IEO",
+    "difficulty": "Easy",
+    "grade": 6
+  },
+  {
+    "id": "icso_io_001_g6",
+    "questionText": "Which of these is an input device?",
+    "options": ["Monitor", "Printer", "Speakers", "Mouse"],
+    "correctAnswerIndex": 3,
+    "explanation": "An input device is used to send data to a computer. A mouse is used to send signals for moving the cursor and clicking. A monitor, printer, and speakers are all output devices.",
+    "topic": "Input and Output Devices",
+    "subject": "ICSO",
+    "difficulty": "Easy",
+    "grade": 6
   }
 ]
