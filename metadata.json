@@ -1,0 +1,5 @@
+{
+  "name": "Olympiad Prep Pal",
+  "description": "An AI-powered quiz platform to help Grade 7 students prepare for SOF IMO and NSO Olympiad exams. Generate custom quizzes, take mock exams, and get detailed performance analysis with explanations and improvement tips.",
+  "requestFramePermissions": []
+}
