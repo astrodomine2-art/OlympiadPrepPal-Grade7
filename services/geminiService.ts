@@ -344,3 +344,100 @@ export async function* getImprovementSuggestions(incorrectlyAnswered: IncorrectA
         yield "Could not generate improvement suggestions at this time due to an error.";
     }
 };
+
+const getDeeperExplanationPrompt = (question: Question): string => {
+    return `
+        You are an expert tutor for a Grade ${question.grade} student. Your task is to explain the solution to the following quiz question.
+        The student has already seen a basic explanation but has asked for a more detailed, methodical breakdown.
+
+        **The Question:**
+        - **Text:** "${question.questionText}"
+        - **Options:** ${question.options.map((opt, i) => `\n  ${String.fromCharCode(65 + i)}. ${opt}`).join('')}
+        - **Correct Answer:** ${String.fromCharCode(65 + question.correctAnswerIndex)}. ${question.options[question.correctAnswerIndex]}
+
+        **Your Instructions:**
+        1.  **Start with First Principles:** Begin by stating the fundamental concept, formula, or rule from the topic of "${question.topic}" that is essential to solving this problem.
+        2.  **Deconstruct the Problem:** Break down the question into smaller, manageable parts. Identify the key information given and what is being asked.
+        3.  **Step-by-Step Solution:** Walk through the solution methodically. Explain each step clearly and logically. If there are calculations, show them.
+        4.  **Eliminate Incorrect Options (Optional but helpful):** Briefly explain why the other options are incorrect, if it helps clarify the concept.
+        5.  **Conclude:** Summarize the key takeaway or the final answer.
+
+        The tone should be encouraging and clear, aiming for deep understanding, not just memorization. Format the response using markdown for readability (e.g., use bolding for key terms, bullet points for steps).
+    `;
+};
+
+async function* getDeeperExplanationWithClaude(question: Question): AsyncGenerator<string> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error("Cannot get deeper explanation with Claude: ANTHROPIC_API_KEY is not set.");
+    }
+    const prompt = getDeeperExplanationPrompt(question);
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 2048,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+            }),
+        });
+
+        if (!response.body) {
+            throw new Error("Response body is null");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n\n');
+            for (const line of lines) {
+                if (line.startsWith('data:')) {
+                    try {
+                        const data = JSON.parse(line.substring(5));
+                        if (data.type === 'content_block_delta' && data.delta.type === 'text_delta') {
+                            yield data.delta.text;
+                        }
+                    } catch (e) {
+                        // Ignore non-json lines
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error in Claude deeper explanation stream:", error);
+        yield "An error occurred while getting the explanation from Claude.";
+    }
+}
+
+
+export async function* getDeeperExplanation(question: Question, model: 'gemini' | 'claude'): AsyncGenerator<string> {
+    const prompt = getDeeperExplanationPrompt(question);
+
+    if (model === 'claude') {
+        yield* getDeeperExplanationWithClaude(question);
+        return;
+    }
+
+    try {
+        const response = await ai.models.generateContentStream({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+
+        for await (const chunk of response) {
+            yield chunk.text;
+        }
+    } catch (error) {
+        console.error("Error in Gemini deeper explanation stream:", error);
+        yield "An error occurred while getting the explanation from Gemini.";
+    }
+}

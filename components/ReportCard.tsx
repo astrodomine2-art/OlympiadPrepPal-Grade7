@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { QuizResult, Question, Subject, Grade } from '../types';
-import { getImprovementSuggestions } from '../services/geminiService';
+import { getImprovementSuggestions, getDeeperExplanation } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
 import Spinner from './Spinner';
@@ -18,6 +18,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
   const [parsedTopics, setParsedTopics] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
   const [shownExplanations, setShownExplanations] = useState<Set<string>>(new Set());
+  
+  // State for deeper explanations
+  const [deeperExplanations, setDeeperExplanations] = useState<Record<string, string>>({});
+  const [loadingDeeperExplanation, setLoadingDeeperExplanation] = useState<Record<string, 'gemini' | 'claude' | null>>({});
+  const [explanationControlsVisibleFor, setExplanationControlsVisibleFor] = useState<string | null>(null);
+
 
   const { hasBeenRegraded, originalScore, questionsChanged } = useMemo(() => {
     if (!result.originalQuestions) {
@@ -103,17 +109,41 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
     });
   };
 
+  const handleDeeperExplanation = async (question: Question, model: 'gemini' | 'claude') => {
+    setLoadingDeeperExplanation(prev => ({ ...prev, [question.id]: model }));
+    setDeeperExplanations(prev => ({ ...prev, [question.id]: '' })); // Clear previous explanation
+
+    try {
+        const stream = getDeeperExplanation(question, model);
+        for await (const chunk of stream) {
+            setDeeperExplanations(prev => ({
+                ...prev,
+                [question.id]: (prev[question.id] || '') + chunk,
+            }));
+        }
+    } catch (error) {
+        console.error(`Error fetching deeper explanation from ${model}:`, error);
+        setDeeperExplanations(prev => ({
+            ...prev,
+            [question.id]: `An error occurred while fetching the explanation. Please try again.`
+        }));
+    } finally {
+        setLoadingDeeperExplanation(prev => ({ ...prev, [question.id]: null }));
+    }
+  };
+
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}m ${secs}s`;
   };
 
-  const renderSuggestion = (text: string) => {
+  const renderMarkdown = (text: string) => {
     const html = text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br />'); // Render newlines
+      .replace(/\n/g, '<br />');
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
@@ -165,7 +195,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
           suggestionsText && (
             <div className="space-y-4">
               <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 prose max-w-none">
-                {renderSuggestion(suggestionsText)}
+                {renderMarkdown(suggestionsText)}
               </div>
               {!loadingSuggestions && parsedTopics.length > 0 && (
                 <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
@@ -193,6 +223,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
             const isExplanationVisible = shownExplanations.has(q.id);
             const originalQuestion = result.originalQuestions?.[index];
             const wasChanged = hasBeenRegraded && originalQuestion && JSON.stringify(q) !== JSON.stringify(originalQuestion);
+            const isLoadingDeeper = loadingDeeperExplanation[q.id];
 
             return (
               <div key={q.id} className={`p-4 rounded-lg border-l-4 ${isCorrect ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
@@ -219,23 +250,66 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
                   })}
                 </div>
                 
-                {isCorrect && (
-                  <div className="mt-3">
-                    <button
-                      onClick={() => handleToggleExplanation(q.id)}
-                      className="text-sm font-semibold text-blue-600 hover:underline focus:outline-none"
-                    >
-                      {isExplanationVisible ? 'Hide Explanation' : 'Show Explanation'}
-                    </button>
-                  </div>
-                )}
-                
-                {(!isCorrect || isExplanationVisible) && (
-                  <div className={`mt-3 pt-3 border-t ${isCorrect ? 'border-green-200' : 'border-red-200'}`}>
-                    <p className="font-semibold text-slate-700">Explanation:</p>
-                    <p className="text-slate-600">{q.explanation}</p>
-                  </div>
-                )}
+                <div className={`mt-3 pt-3 border-t ${isCorrect ? 'border-green-200' : 'border-red-200'}`}>
+                    <div className="flex items-center justify-between">
+                        <p className="font-semibold text-slate-700">Explanation:</p>
+                        <button
+                            onClick={() => handleToggleExplanation(q.id)}
+                            className="text-sm font-semibold text-blue-600 hover:underline focus:outline-none"
+                        >
+                            {isExplanationVisible ? 'Hide' : 'Show'}
+                        </button>
+                    </div>
+                  
+                    {isExplanationVisible && (
+                        <>
+                            <p className="text-slate-600 mt-1">{q.explanation}</p>
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => setExplanationControlsVisibleFor(prev => prev === q.id ? null : q.id)}
+                                    className="text-sm font-semibold text-purple-600 hover:underline focus:outline-none"
+                                >
+                                    Need a simpler explanation?
+                                </button>
+                                {explanationControlsVisibleFor === q.id && (
+                                    <div className="flex items-center space-x-2 mt-2">
+                                        <Button
+                                            onClick={() => handleDeeperExplanation(q, 'gemini')}
+                                            variant="secondary"
+                                            className="py-1 px-3 text-sm"
+                                            disabled={!!isLoadingDeeper}
+                                        >
+                                            {isLoadingDeeper === 'gemini' ? 'Generating...' : 'Explain with Gemini'}
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleDeeperExplanation(q, 'claude')}
+                                            variant="secondary"
+                                            className="py-1 px-3 text-sm"
+                                            disabled={!!isLoadingDeeper}
+                                        >
+                                            {isLoadingDeeper === 'claude' ? 'Generating...' : 'Explain with Claude'}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {isLoadingDeeper && (
+                                <div className="mt-4">
+                                  <Spinner message={`Asking ${isLoadingDeeper} for a simpler explanation...`} />
+                                </div>
+                            )}
+
+                            {deeperExplanations[q.id] && (
+                                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h4 className="font-bold text-blue-800">Deeper Dive Explanation:</h4>
+                                    <div className="prose prose-sm max-w-none text-slate-700 mt-2">
+                                        {renderMarkdown(deeperExplanations[q.id])}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
               </div>
             );
           })}
