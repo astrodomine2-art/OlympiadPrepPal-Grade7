@@ -1,4 +1,4 @@
-import { Badge, BadgeId } from '../../types';
+import { Badge, BadgeId, UserStats, QuizResult, Subject } from '../../types';
 
 export const BADGE_DEFS: Record<BadgeId, Badge> = {
   firstQuiz: {
@@ -18,18 +18,21 @@ export const BADGE_DEFS: Record<BadgeId, Badge> = {
     name: 'Hot Streak',
     description: 'Completed 3 quizzes in a row with a score of 80% or higher.',
     icon: '🔥',
+    progress: (stats) => ({ current: stats.hotStreak || 0, goal: 3 }),
   },
   centuryClub: {
     id: 'centuryClub',
     name: 'Century Club',
     description: 'Answered 100 questions correctly.',
     icon: '💯',
+    progress: (stats) => ({ current: stats.totalCorrectAnswers || 0, goal: 100 }),
   },
   studyHabit: {
     id: 'studyHabit',
     name: 'Study Habit',
     description: 'Completed a quiz on 5 different days.',
     icon: '🗓️',
+    progress: (stats) => ({ current: stats.completedOnDates?.length || 0, goal: 5 }),
   },
   quickThinker: {
     id: 'quickThinker',
@@ -54,6 +57,16 @@ export const BADGE_DEFS: Record<BadgeId, Badge> = {
     name: 'Veteran Examiner',
     description: 'Completed 3 mock exams for a single subject.',
     icon: '🎖️',
+    progress: (stats, history) => {
+        const mockExamsBySubject: Record<string, number> = history
+            .filter(r => r.isMock)
+            .reduce((acc, r) => {
+                acc[r.subject] = (acc[r.subject] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+        const maxMocks = Object.values(mockExamsBySubject).length > 0 ? Math.max(...Object.values(mockExamsBySubject)) : 0;
+        return { current: maxMocks, goal: 3 };
+    }
   },
   comebackKid: {
     id: 'comebackKid',
@@ -96,6 +109,7 @@ export const BADGE_DEFS: Record<BadgeId, Badge> = {
     name: 'Polymath',
     description: 'Practiced at least 10 different topics.',
     icon: '📚',
+    progress: (stats) => ({ current: stats.topicsPracticed?.length || 0, goal: 10 }),
   },
   subjectSovereign: {
     id: 'subjectSovereign',

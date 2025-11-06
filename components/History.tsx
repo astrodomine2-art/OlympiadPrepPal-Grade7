@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuizResult, Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, BadgeId } from '../types';
+import { QuizResult, Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, BadgeId, UserStats } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
 import { BADGE_DEFS } from './gamification/BadgeDefs';
@@ -129,12 +129,13 @@ const TrendIndicator: React.FC<{ trend: Trend }> = ({ trend }) => {
 interface HistoryProps {
   history: QuizResult[];
   unlockedBadges: BadgeId[];
+  userStats: UserStats;
   onBackToHome: () => void;
   onViewReport: (result: QuizResult) => void;
   onPracticeMistakes: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ history, unlockedBadges, onBackToHome, onViewReport, onPracticeMistakes }) => {
+const History: React.FC<HistoryProps> = ({ history, unlockedBadges, userStats, onBackToHome, onViewReport, onPracticeMistakes }) => {
   const [trends, setTrends] = useState<TrendData | null>(null);
 
   const hasMistakes = useMemo(() => {
@@ -161,14 +162,34 @@ const History: React.FC<HistoryProps> = ({ history, unlockedBadges, onBackToHome
         <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">My Achievements</h2>
         <div className="flex flex-wrap justify-center gap-4 p-4">
             {Object.values(BADGE_DEFS).map(badge => {
-            const isUnlocked = unlockedBadges.includes(badge.id);
-            return (
-                <div key={badge.id} className={`flex flex-col items-center w-24 text-center transition-all ${isUnlocked ? 'opacity-100' : 'opacity-40 grayscale'}`}>
-                    <BadgeIcon badge={badge} />
-                    <p className="mt-2 text-sm font-semibold text-slate-700">{badge.name}</p>
-                    {!isUnlocked && <p className="text-xs text-slate-500">{badge.description}</p>}
-                </div>
-            );
+                const isUnlocked = unlockedBadges.includes(badge.id);
+                const progressData = !isUnlocked && badge.progress ? badge.progress(userStats, history) : null;
+                const progressPercent = progressData ? Math.min((progressData.current / progressData.goal) * 100, 100) : 0;
+
+                return (
+                    <div key={badge.id} className="flex flex-col items-center w-24 text-center transition-all">
+                        <div className={isUnlocked ? '' : 'grayscale opacity-60'}>
+                            <BadgeIcon badge={badge} />
+                        </div>
+                        <p className={`mt-2 text-sm font-semibold ${isUnlocked ? 'text-slate-800' : 'text-slate-600'}`}>{badge.name}</p>
+
+                        {progressData ? (
+                            <div className="w-full mt-1">
+                                <div className="bg-slate-200 rounded-full h-2 w-full" title={`${progressData.current} / ${progressData.goal}`}>
+                                    <div
+                                        className="bg-amber-400 h-2 rounded-full"
+                                        style={{ width: `${progressPercent}%` }}
+                                    ></div>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    {progressData.current}/{progressData.goal}
+                                </p>
+                            </div>
+                        ) : (
+                            !isUnlocked && <p className="text-xs text-slate-500 mt-1 h-10">{badge.description}</p>
+                        )}
+                    </div>
+                );
             })}
         </div>
       </Card>

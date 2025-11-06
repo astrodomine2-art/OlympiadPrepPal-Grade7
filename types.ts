@@ -1,4 +1,3 @@
-
 export enum Subject {
     IMO = 'IMO',
     NSO = 'NSO',
@@ -83,6 +82,7 @@ export interface Badge {
     name: string;
     description: string;
     icon: string; // Emoji or SVG name
+    progress?: (stats: UserStats, history: QuizResult[]) => { current: number; goal: number } | null;
 }
 
 export interface UserStats {
