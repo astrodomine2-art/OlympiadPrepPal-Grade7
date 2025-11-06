@@ -1,4 +1,3 @@
-
 {
   "name": "olympiad-prep-pal",
   "version": "1.0.0",
@@ -12,5 +11,17 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.19.2"
-  }
+  },
+  "files": [
+    "server.js",
+    "index.html",
+    "index.tsx",
+    "App.tsx",
+    "types.ts",
+    "questions.json",
+    "metadata.json",
+    "components/",
+    "services/",
+    "hooks/"
+  ]
 }
