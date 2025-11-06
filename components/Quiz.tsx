@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Question, QuizResult, Grade } from '../types';
 import { revalidateQuestion } from '../services/geminiService';
 import Button from './common/Button';
@@ -37,6 +37,43 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   });
   const prevQuestions = prevQuestionsRef.current;
 
+  const handleSubmit = useCallback(() => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+
+    const finalAnswers = [...userAnswers];
+    finalAnswers[currentQuestionIndex] = selectedOption;
+    while(finalAnswers.length < questions.length) {
+        finalAnswers.push(null);
+    }
+    
+    const score = finalAnswers.reduce((acc, answer, index) => {
+      if (index < questions.length && answer === questions[index].correctAnswerIndex) {
+          return acc + 1;
+      }
+      return acc;
+    }, 0);
+    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+
+    if (!questions || questions.length === 0) {
+      console.error('handleSubmit called without questions.');
+      return;
+    }
+
+    onQuizComplete({
+      id: new Date().toISOString(),
+      date: new Date().toLocaleString(),
+      questions,
+      userAnswers: finalAnswers,
+      score,
+      subject: questions[0].subject,
+      topics: [...new Set(questions.map(q => q.topic))],
+      timeTaken,
+      isMock,
+      grade: questions[0].grade,
+      originalQuestions: isMock ? originalQuestionsRef.current : undefined,
+    });
+  }, [userAnswers, currentQuestionIndex, selectedOption, questions, startTime, onQuizComplete, isMock]);
+
   useEffect(() => {
     // Sync userAnswers array with questions array, crucial for background question fetching.
     setUserAnswers(prevAnswers => {
@@ -51,22 +88,28 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     });
   }, [questions]);
 
+  // FIX: Refactored timer logic to prevent stale closures.
+  // This effect now only handles the countdown.
   useEffect(() => {
     if (isMock) {
       timerIntervalRef.current = window.setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timerIntervalRef.current!);
-            handleSubmit();
-            return 0;
-          }
-          return prev - 1;
-        });
+        setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
       }, 1000);
     }
     setStartTime(Date.now());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
   }, [isMock]);
+
+  // This effect handles the submission when the timer runs out.
+  useEffect(() => {
+    if (isMock && timeLeft <= 0) {
+      handleSubmit();
+    }
+  }, [isMock, timeLeft, handleSubmit]);
   
   useEffect(() => {
     // Show notification if the current question is updated by the background revalidation
@@ -146,43 +189,6 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     setCurrentQuestionIndex(prev => prev + 1);
   };
 
-  const handleSubmit = () => {
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-
-    const finalAnswers = [...userAnswers];
-    finalAnswers[currentQuestionIndex] = selectedOption;
-    while(finalAnswers.length < questions.length) {
-        finalAnswers.push(null);
-    }
-    
-    const score = finalAnswers.reduce((acc, answer, index) => {
-      if (index < questions.length && answer === questions[index].correctAnswerIndex) {
-          return acc + 1;
-      }
-      return acc;
-    }, 0);
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-
-    if (!questions || questions.length === 0) {
-      console.error('handleSubmit called without questions.');
-      return;
-    }
-
-    onQuizComplete({
-      id: new Date().toISOString(),
-      date: new Date().toLocaleString(),
-      questions,
-      userAnswers: finalAnswers,
-      score,
-      subject: questions[0].subject,
-      topics: [...new Set(questions.map(q => q.topic))],
-      timeTaken,
-      isMock,
-      grade: questions[0].grade,
-      originalQuestions: isMock ? originalQuestionsRef.current : undefined,
-    });
-  };
-  
   const handleRevalidate = async () => {
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     setRevalidationState({ status: 'loading', message: 'Revalidating with AI...' });

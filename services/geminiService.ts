@@ -125,14 +125,18 @@ const generateQuestionsWithClaude = async (subject: Subject, topics: string[], c
         const responseData = await response.json();
         const textContent = responseData.content[0]?.text || '';
         
-        const jsonMatch = textContent.match(/\\\`\\\`\\\`json\n([\s\S]*?)\n\\\`\\\`\\\`/);
-        if (!jsonMatch || !jsonMatch[1]) {
-            console.error("Claude response did not contain a valid JSON block:", textContent);
-            throw new Error("Failed to parse JSON response from the secondary AI.");
+        const jsonMatch = textContent.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch && jsonMatch[1]) {
+            const jsonText = jsonMatch[1];
+            return JSON.parse(jsonText) as Question[];
+        } else {
+             try {
+                return JSON.parse(textContent) as Question[];
+            } catch(e) {
+                console.error("Claude response did not contain a valid JSON block and could not be parsed:", textContent);
+                throw new Error("Failed to parse JSON response from the secondary AI.");
+            }
         }
-        
-        const jsonText = jsonMatch[1];
-        return JSON.parse(jsonText) as Question[];
 
     } catch (error) {
         console.error("Error during fallback AI call:", error);
@@ -202,9 +206,71 @@ export const generateQuestions = async (subject: Subject, topics: string[], coun
     }
 };
 
+const revalidateQuestionWithClaude = async (question: Question): Promise<Question> => {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error("Attempted to use fallback AI for revalidation, but ANTHROPIC_API_KEY is not configured.");
+    }
+
+    const prompt = `
+        You are an expert fact-checker and editor for Grade ${question.grade} Olympiad quiz questions. Your task is to meticulously review the following JSON object representing a quiz question.
+        - Check the 'questionText' for any factual inaccuracies, grammatical errors, or ambiguities.
+        - Verify that the 'options' are plausible but that only one is correct.
+        - Ensure the 'correctAnswerIndex' correctly points to the right answer.
+        - Validate that the 'explanation' is clear, accurate, and properly justifies the correct answer.
+
+        If you find ANY error, correct it and return the entire, updated JSON object.
+        If the question is 100% correct in every aspect, return the original JSON object without any changes.
+
+        The question to validate is:
+        ${JSON.stringify(question)}
+
+        VERY IMPORTANT: You must respond with ONLY the JSON object inside a single \`\`\`json ... \`\`\` code block. Do not include any introductory text, explanations, or any other content outside the JSON block.
+    `;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 2048,
+                messages: [{ role: 'user', content: prompt }],
+            }),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Anthropic API request for revalidation failed with status ${response.status}: ${errorBody}`);
+        }
+
+        const responseData = await response.json();
+        const textContent = responseData.content[0]?.text || '';
+        
+        const jsonMatch = textContent.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch && jsonMatch[1]) {
+            const jsonText = jsonMatch[1];
+            return JSON.parse(jsonText) as Question;
+        } else {
+            try {
+                return JSON.parse(textContent) as Question;
+            } catch (e) {
+                console.error("Claude revalidation response did not contain a valid JSON block and could not be parsed:", textContent);
+                throw new Error("Failed to parse JSON response from the secondary AI for revalidation.");
+            }
+        }
+    } catch (error) {
+        console.error("Error during fallback AI call for revalidation:", error);
+        throw error;
+    }
+};
+
 export const revalidateQuestion = async (question: Question): Promise<Question> => {
     const prompt = `
-        You are an expert fact-checker and editor for Grade 7 Olympiad quiz questions. Your task is to meticulously review the following JSON object representing a quiz question.
+        You are an expert fact-checker and editor for Grade ${question.grade} Olympiad quiz questions. Your task is to meticulously review the following JSON object representing a quiz question.
         - Check the 'questionText' for any factual inaccuracies, grammatical errors, or ambiguities.
         - Verify that the 'options' are plausible but that only one is correct.
         - Ensure the 'correctAnswerIndex' correctly points to the right answer.
@@ -226,10 +292,24 @@ export const revalidateQuestion = async (question: Question): Promise<Question> 
             }
         });
         const jsonText = response.text.trim();
+        if (!jsonText) {
+            throw new Error("Primary AI (Gemini) returned an empty response for revalidation.");
+        }
         return JSON.parse(jsonText) as Question;
-    } catch(error) {
-        console.error("Error revalidating question:", error);
-        throw new Error("Failed to revalidate the question. Please try again.");
+    } catch(geminiError) {
+        console.warn("Primary AI (Gemini) failed during revalidation. Attempting fallback with Secondary AI (Claude).", geminiError);
+        
+        if (!process.env.ANTHROPIC_API_KEY) {
+            console.error("Cannot use fallback AI for revalidation: ANTHROPIC_API_KEY is not set.");
+            throw new Error("Failed to revalidate the question. The primary AI failed and a fallback is not configured.");
+        }
+
+        try {
+            return await revalidateQuestionWithClaude(question);
+        } catch (claudeError) {
+            console.error("Secondary AI (Claude) also failed during revalidation.", claudeError);
+            throw new Error(`Both primary and secondary AI services failed to revalidate the question. Please try again later.`);
+        }
     }
 };
 
