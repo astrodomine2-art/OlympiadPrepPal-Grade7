@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuizResult, Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS } from '../types';
+import { QuizResult, Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, BadgeId } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
+import { BADGE_DEFS } from './gamification/BadgeDefs';
+import BadgeIcon from './gamification/BadgeIcon';
+
 
 type Trend = 'improving' | 'declining' | 'stable' | 'insufficient_data';
 
@@ -125,12 +128,13 @@ const TrendIndicator: React.FC<{ trend: Trend }> = ({ trend }) => {
 
 interface HistoryProps {
   history: QuizResult[];
+  unlockedBadges: BadgeId[];
   onBackToHome: () => void;
   onViewReport: (result: QuizResult) => void;
   onPracticeMistakes: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport, onPracticeMistakes }) => {
+const History: React.FC<HistoryProps> = ({ history, unlockedBadges, onBackToHome, onViewReport, onPracticeMistakes }) => {
   const [trends, setTrends] = useState<TrendData | null>(null);
 
   const hasMistakes = useMemo(() => {
@@ -153,6 +157,22 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport, 
             <Button onClick={onBackToHome} variant="secondary">Back to Home</Button>
         </div>
 
+      <Card>
+        <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">My Achievements</h2>
+        <div className="flex flex-wrap justify-center gap-4 p-4">
+            {Object.values(BADGE_DEFS).map(badge => {
+            const isUnlocked = unlockedBadges.includes(badge.id);
+            return (
+                <div key={badge.id} className={`flex flex-col items-center w-24 text-center transition-all ${isUnlocked ? 'opacity-100' : 'opacity-40 grayscale'}`}>
+                    <BadgeIcon badge={badge} />
+                    <p className="mt-2 text-sm font-semibold text-slate-700">{badge.name}</p>
+                    {!isUnlocked && <p className="text-xs text-slate-500">{badge.description}</p>}
+                </div>
+            );
+            })}
+        </div>
+      </Card>
+      
       <Card>
           <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">Study Tools</h2>
           <div className="flex justify-center">

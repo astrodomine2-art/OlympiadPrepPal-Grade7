@@ -237,6 +237,13 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
   };
   
   const handleJumpToQuestion = (index: number) => {
+    // If an option is selected for the current question, save it before jumping.
+    // This commits the answer, preventing it from being changed later.
+    if (selectedOption !== null && userAnswers[currentQuestionIndex] === null) {
+        const newAnswers = [...userAnswers];
+        newAnswers[currentQuestionIndex] = selectedOption;
+        setUserAnswers(newAnswers);
+    }
     setCurrentQuestionIndex(index);
     setShowAnswer(false);
     setIsNavigatorOpen(false);
@@ -257,7 +264,9 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
           </div>
       )
   }
-
+  
+  // A question is considered answered and locked if a response is stored in the main userAnswers array.
+  const isAnswered = userAnswers[currentQuestionIndex] !== null;
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
   const isRevalidating = revalidationState.status === 'loading';
   const hasBeenRevalidated = revalidatedIndices.has(currentQuestionIndex);
@@ -295,11 +304,11 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
                     <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
                     {questions.map((_, index) => {
                         const isCurrent = index === currentQuestionIndex;
-                        const isAnswered = userAnswers[index] !== null;
+                        const isAnsweredNav = userAnswers[index] !== null;
                         const wasRevalidated = revalidatedIndices.has(index) || (isMock && originalQuestionsRef.current[index] && questions[index] && JSON.stringify(originalQuestionsRef.current[index]) !== JSON.stringify(questions[index]));
                         
                         let buttonClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300';
-                        if (isAnswered) {
+                        if (isAnsweredNav) {
                         buttonClass = 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300';
                         }
                         if (isCurrent) {
@@ -381,8 +390,8 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
               <button
                 key={index}
                 onClick={() => handleOptionSelect(index)}
-                disabled={instantFeedback && showAnswer}
-                className={`w-full text-left p-4 rounded-lg border-2 transition text-slate-700 disabled:cursor-not-allowed ${buttonClass}`}
+                disabled={(instantFeedback && showAnswer) || isAnswered}
+                className={`w-full text-left p-4 rounded-lg border-2 transition text-slate-700 disabled:cursor-not-allowed ${buttonClass} ${isAnswered ? 'disabled:opacity-80' : ''}`}
               >
                 <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
                 {option}

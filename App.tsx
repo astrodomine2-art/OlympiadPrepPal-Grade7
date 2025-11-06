@@ -235,7 +235,7 @@ const App: React.FC = () => {
       case 'report':
         return quizResult && <ReportCard result={quizResult} onBackToHome={handleBackToHome} onRetakeQuiz={handleRetakeQuiz} onPracticeTopic={handlePracticeTopic} />;
       case 'history':
-        return <History history={history} onBackToHome={handleBackToHome} onViewReport={(result) => { setQuizResult(result); setCurrentView('report'); }} onPracticeMistakes={handlePracticeMistakes} />;
+        return <History history={history} onBackToHome={handleBackToHome} onViewReport={(result) => { setQuizResult(result); setCurrentView('report'); }} onPracticeMistakes={handlePracticeMistakes} unlockedBadges={unlockedBadges} />;
       case 'setup':
       default:
         return <QuizSetup onStartQuiz={handleStartQuiz} onViewHistory={handleViewHistory} prefilledSetup={prefilledSetup} onPrefillConsumed={() => setPrefilledSetup(null)} />;
