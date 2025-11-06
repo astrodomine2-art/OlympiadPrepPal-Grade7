@@ -29,6 +29,8 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   const autoValidationStartedRef = useRef(false);
   const [revalidationProgress, setRevalidationProgress] = useState(0);
 
+  const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
+
   const prevQuestionsRef = useRef<Question[]>();
   useEffect(() => {
     prevQuestionsRef.current = questions;
@@ -115,7 +117,22 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   useEffect(() => {
     // Reset revalidation message when question changes
     setRevalidationState({ status: 'idle', message: '' });
-  }, [currentQuestionIndex]);
+    setSelectedOption(userAnswers[currentQuestionIndex] ?? null);
+  }, [currentQuestionIndex, userAnswers]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsNavigatorOpen(false);
+      }
+    };
+    if (isNavigatorOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNavigatorOpen]);
 
   const handleOptionSelect = (optionIndex: number) => {
     setSelectedOption(optionIndex);
@@ -138,7 +155,6 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
         finalAnswers.push(null);
     }
     
-    // The 'questions' prop contains the latest, revalidated questions.
     const score = finalAnswers.reduce((acc, answer, index) => {
       if (index < questions.length && answer === questions[index].correctAnswerIndex) {
           return acc + 1;
@@ -155,7 +171,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     onQuizComplete({
       id: new Date().toISOString(),
       date: new Date().toLocaleString(),
-      questions, // Pass the final, validated questions
+      questions,
       userAnswers: finalAnswers,
       score,
       subject: questions[0].subject,
@@ -193,6 +209,11 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     }
   };
   
+  const handleJumpToQuestion = (index: number) => {
+    setCurrentQuestionIndex(index);
+    setIsNavigatorOpen(false);
+  };
+  
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -202,7 +223,6 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   const currentQuestion = questions[currentQuestionIndex];
   
   if (!currentQuestion) {
-      // Handles the edge case where questions are still loading.
       return (
           <div className="flex justify-center items-center h-64">
               <p>Loading question...</p>
@@ -216,15 +236,86 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
+      {isNavigatorOpen && (
+        <div
+            className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+            onClick={() => setIsNavigatorOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="navigator-title"
+        >
+            <div 
+                className="bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full max-h-[90vh] flex flex-col"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex justify-between items-center mb-2">
+                    <h3 id="navigator-title" className="text-2xl font-bold text-slate-800">Jump to Question</h3>
+                    <button onClick={() => setIsNavigatorOpen(false)} className="text-slate-500 hover:text-slate-800 text-3xl font-light">&times;</button>
+                </div>
+                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600 mb-4 border-b pb-3">
+                    <div className="flex items-center"><span className="w-4 h-4 rounded-full bg-green-100 border border-green-300 mr-2"></span> Answered</div>
+                    <div className="flex items-center"><span className="w-4 h-4 rounded-full bg-slate-100 border border-slate-300 mr-2"></span> Unanswered</div>
+                    <div className="flex items-center"><span className="w-4 h-4 rounded-full bg-blue-600 border border-blue-600 mr-2"></span> Current</div>
+                    <div className="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span>AI Validated</span>
+                    </div>
+                </div>
+                <div className="overflow-y-auto">
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                    {questions.map((_, index) => {
+                        const isCurrent = index === currentQuestionIndex;
+                        const isAnswered = userAnswers[index] !== null;
+                        const wasRevalidated = revalidatedIndices.has(index) || (isMock && originalQuestionsRef.current[index] && questions[index] && JSON.stringify(originalQuestionsRef.current[index]) !== JSON.stringify(questions[index]));
+                        
+                        let buttonClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300';
+                        if (isAnswered) {
+                        buttonClass = 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300';
+                        }
+                        if (isCurrent) {
+                        buttonClass = 'bg-blue-600 text-white ring-2 ring-blue-500 ring-offset-2 border border-blue-600';
+                        }
+
+                        return (
+                        <button
+                            key={index}
+                            onClick={() => handleJumpToQuestion(index)}
+                            className={`relative flex items-center justify-center w-10 h-10 rounded-lg font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonClass}`}
+                            aria-label={`Go to question ${index + 1}${wasRevalidated ? ' (Validated by AI)' : ''}`}
+                        >
+                            {index + 1}
+                            {wasRevalidated && (
+                                <span className="absolute bottom-0 right-0 transform translate-x-1/4 translate-y-1/4 bg-white rounded-full p-0.5 shadow">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                </span>
+                            )}
+                        </button>
+                        );
+                    })}
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
       {isMock && revalidationProgress < questions.length && (
          <div className="text-center text-sm text-slate-600 mb-4 p-2 bg-blue-50 rounded-lg animate-pulse">
            <p>🤖 AI is double-checking questions for accuracy... ({revalidationProgress}/{questions.length})</p>
          </div>
       )}
       <Card>
-        <div className="flex justify-between items-center mb-4 border-b pb-4">
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-4 border-b pb-4">
           <h2 className="text-xl font-bold text-slate-700">Question {currentQuestionIndex + 1} of {questions.length}</h2>
-          {isMock && <div className="text-lg font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">Time Left: {formatTime(timeLeft)}</div>}
+          <div className="flex items-center space-x-4">
+            {isMock && <div className="text-lg font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full shrink-0">Time Left: {formatTime(timeLeft)}</div>}
+             <Button variant="secondary" onClick={() => setIsNavigatorOpen(true)} className="py-2 px-4 text-sm font-semibold">
+                Jump to...
+            </Button>
+          </div>
         </div>
         
         <div className={`min-h-[150px] transition-opacity duration-300 ${isRevalidating ? 'opacity-50' : 'opacity-100'}`}>
