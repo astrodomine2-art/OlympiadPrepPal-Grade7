@@ -16,7 +16,7 @@ app.get('/env.js', (req, res) => {
         ANTHROPIC_API_KEY: "${process.env.ANTHROPIC_API_KEY || ''}"
       }
     };
-  `);
+  `); 
 });
 
 // Serve all static files from the root directory of the project.

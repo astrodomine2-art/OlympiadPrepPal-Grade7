@@ -2,9 +2,9 @@
   "name": "olympiad-prep-pal",
   "version": "1.0.0",
   "description": "An AI-powered quiz platform to help Grade 6 & 7 students prepare for SOF IMO and NSO Olympiad exams.",
-  "main": "server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -13,7 +13,7 @@
     "express": "^4.19.2"
   },
   "files": [
-    "server.js",
+    "main.js",
     "index.html",
     "index.tsx",
     "App.tsx",
