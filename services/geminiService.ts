@@ -1,8 +1,13 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Subject, Difficulty, Grade } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
+}
+
+if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("ANTHROPIC_API_KEY environment variable is not set. Fallback to secondary AI will not be available.");
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -60,6 +65,80 @@ const questionSchema = {
     items: singleQuestionSchema
 };
 
+const generateQuestionsWithClaude = async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, existingIds: string[], grade: Grade): Promise<Question[]> => {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error("Attempted to use fallback AI, but ANTHROPIC_API_KEY is not configured.");
+    }
+    
+    let difficultyInstruction = `The difficulty level must be: ${difficulty}.`;
+    if (difficulty === 'HOTS (Achiever Section)') {
+        difficultyInstruction = `
+            The questions must be of a very high difficulty, specifically designed for the 'Achiever Section' of the Olympiad.
+            These should be 'Higher-Order Thinking Skills' (HOTS) questions that require multi-step reasoning, synthesis of concepts, and advanced problem-solving skills.
+        `;
+    }
+
+    const prompt = `
+        Generate ${count} unique, high-quality quiz questions for a Grade ${grade} student preparing for the ${subject} Olympiad exam.
+        The questions must cover these topics: ${topics.join(', ')}.
+        ${difficultyInstruction}
+        Ensure all questions are factually correct.
+        Use proper mathematical and scientific symbols with Unicode characters.
+        If a question requires a diagram, generate a clean, simple, and accurate SVG string and include it in the 'imageSvg' field.
+        Do not repeat questions with the following IDs: ${existingIds.join(', ')}.
+
+        The JSON array should contain objects, where each object has the following keys and value types:
+        - "id": a unique string identifier.
+        - "questionText": string, the question itself.
+        - "options": an array of 4 strings.
+        - "correctAnswerIndex": an integer (0-3).
+        - "explanation": a detailed string explanation.
+        - "topic": string, from the provided list.
+        - "subject": string ("IMO", "NSO", etc.).
+        - "difficulty": string ("Easy", "Medium", "Hard", etc.).
+        - "grade": integer (6 or 7).
+        - "imageSvg": an optional string containing a valid SVG.
+
+        VERY IMPORTANT: You must respond with ONLY the JSON array inside a single \`\`\`json ... \`\`\` code block. Do not include any introductory text, explanations, or any other content outside the JSON block.
+    `;
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 4096,
+                messages: [{ role: 'user', content: prompt }],
+            }),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Anthropic API request failed with status ${response.status}: ${errorBody}`);
+        }
+
+        const responseData = await response.json();
+        const textContent = responseData.content[0]?.text || '';
+        
+        const jsonMatch = textContent.match(/\\\`\\\`\\\`json\n([\s\S]*?)\n\\\`\\\`\\\`/);
+        if (!jsonMatch || !jsonMatch[1]) {
+            console.error("Claude response did not contain a valid JSON block:", textContent);
+            throw new Error("Failed to parse JSON response from the secondary AI.");
+        }
+        
+        const jsonText = jsonMatch[1];
+        return JSON.parse(jsonText) as Question[];
+
+    } catch (error) {
+        console.error("Error during fallback AI call:", error);
+        throw error;
+    }
+};
 
 export const generateQuestions = async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, existingIds: string[], grade: Grade): Promise<Question[]> => {
     let difficultyInstruction = `The difficulty level must be: ${difficulty}.`;
@@ -84,7 +163,6 @@ export const generateQuestions = async (subject: Subject, topics: string[], coun
 
     try {
         const response = await ai.models.generateContent({
-            // FIX: Use current recommended model 'gemini-2.5-flash' instead of deprecated 'gemini-1.5-flash'
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
@@ -94,12 +172,33 @@ export const generateQuestions = async (subject: Subject, topics: string[], coun
         });
         
         const jsonText = response.text.trim();
+        if (!jsonText) {
+            throw new Error("Primary AI (Gemini) returned an empty response.");
+        }
         const parsedQuestions = JSON.parse(jsonText) as Question[];
+
+        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+            throw new Error("Primary AI (Gemini) returned no questions or invalid data format.");
+        }
+        
         return parsedQuestions;
 
-    } catch (error) {
-        console.error("Error generating questions:", error);
-        throw new Error("Failed to generate quiz questions. Please try again.");
+    } catch (geminiError) {
+        console.warn("Primary AI (Gemini) failed. Attempting fallback with Secondary AI (Claude).", geminiError);
+        
+        if (!process.env.ANTHROPIC_API_KEY) {
+            console.error("Cannot use fallback AI: ANTHROPIC_API_KEY is not set.");
+            throw new Error("Failed to generate quiz questions. The primary AI failed and a fallback is not configured.");
+        }
+        
+        try {
+          const claudeQuestions = await generateQuestionsWithClaude(subject, topics, count, difficulty, existingIds, grade);
+          return claudeQuestions;
+        } catch (claudeError) {
+          console.error("Secondary AI (Claude) also failed.", claudeError);
+          const finalError = new Error(`Both primary and secondary AI services failed to generate questions. Please try again later.`);
+          throw finalError;
+        }
     }
 };
 
@@ -152,7 +251,6 @@ export const getImprovementSuggestions = async (incorrectlyAnswered: Question[])
     
     try {
         const response = await ai.models.generateContent({
-            // FIX: Use current recommended model 'gemini-2.5-flash' instead of deprecated 'gemini-1.5-flash'
             model: "gemini-2.5-flash",
             contents: prompt,
         });
