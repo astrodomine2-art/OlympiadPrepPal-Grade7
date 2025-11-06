@@ -30,6 +30,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
   const originalQuestionsRef = useRef(questions);
   const autoValidationStartedRef = useRef(false);
   const [revalidationProgress, setRevalidationProgress] = useState(0);
+  const revalidationWorkerRef = useRef<Worker | null>(null);
 
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
 
@@ -133,23 +134,35 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
   useEffect(() => {
     if (isMock && questions.length > 0 && !autoValidationStartedRef.current) {
         autoValidationStartedRef.current = true;
-        const revalidateAll = async () => {
-            const initialQuestions = originalQuestionsRef.current;
-            const promises = initialQuestions.map((q, index) =>
-                revalidateQuestion(q)
-                    .then(validatedQ => {
-                        onQuestionRevalidated(index, validatedQ);
-                    })
-                    .catch(err => {
-                        console.error(`Failed to revalidate question ${index}:`, err);
-                    })
-                    .finally(() => {
-                        setRevalidationProgress(p => p + 1);
-                    })
-            );
-            await Promise.allSettled(promises);
+
+        const worker = new Worker(new URL('../services/revalidation.worker.ts', import.meta.url), { type: 'module' });
+        revalidationWorkerRef.current = worker;
+
+        worker.onmessage = (event: MessageEvent) => {
+            const { index, validatedQuestion, status } = event.data;
+            if (status === 'success') {
+                onQuestionRevalidated(index, validatedQuestion);
+            } else {
+                console.error(`Revalidation failed in worker for question index ${index}.`);
+            }
+            setRevalidationProgress(p => p + 1);
         };
-        revalidateAll();
+        
+        worker.onerror = (error) => {
+            console.error('Revalidation worker error:', error);
+            // In case of a catastrophic worker failure, we stop the process.
+            // Individual question errors are handled in onmessage.
+        };
+
+        const initialQuestions = originalQuestionsRef.current;
+        initialQuestions.forEach((q, index) => {
+            worker.postMessage({
+                question: q,
+                index,
+                apiKey: process.env.API_KEY,
+                anthropicApiKey: process.env.ANTHROPIC_API_KEY
+            });
+        });
     }
   }, [isMock, questions.length, onQuestionRevalidated]);
 
@@ -157,6 +170,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizC
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+      revalidationWorkerRef.current?.terminate();
     };
   }, []);
   

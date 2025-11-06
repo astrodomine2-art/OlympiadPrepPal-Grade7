@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Subject, Difficulty, Grade, IncorrectAnswerDetail, ImprovementSuggestion } from '../types';
+import { Question, Subject, Difficulty, Grade, IncorrectAnswerDetail } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
@@ -312,21 +312,9 @@ export const revalidateQuestion = async (question: Question): Promise<Question> 
     }
 };
 
-const suggestionSchema = {
-    type: Type.ARRAY,
-    items: {
-        type: Type.OBJECT,
-        properties: {
-            topic: { type: Type.STRING },
-            suggestion: { type: Type.STRING }
-        },
-        required: ['topic', 'suggestion']
-    }
-};
-
-export const getImprovementSuggestions = async (incorrectlyAnswered: IncorrectAnswerDetail[], grade: Grade): Promise<ImprovementSuggestion[]> => {
+export async function* getImprovementSuggestions(incorrectlyAnswered: IncorrectAnswerDetail[], grade: Grade): AsyncGenerator<string> {
     if(incorrectlyAnswered.length === 0) {
-        return [];
+        return;
     }
 
     const mistakesContext = incorrectlyAnswered.map(item => 
@@ -339,23 +327,20 @@ export const getImprovementSuggestions = async (incorrectlyAnswered: IncorrectAn
         
         Based on this specific list of mistakes, provide a concise analysis of their potential misunderstandings. For each distinct topic they struggled with, give one specific, actionable suggestion for improvement. Your suggestions should directly address the concepts they got wrong.
         
-        Return the result as a JSON array, where each object contains a "topic" and a "suggestion" field.
+        Format the output as clean markdown. For each topic, use a bolded heading like "**Topic: [Topic Name]**", followed by the suggestion in a new line. Do not wrap the response in a JSON object or code block.
     `;
     
     try {
-        const response = await ai.models.generateContent({
+        const response = await ai.models.generateContentStream({
             model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: suggestionSchema
-            }
+            contents: prompt
         });
-        const jsonText = response.text.trim();
-        if (!jsonText) return [];
-        return JSON.parse(jsonText) as ImprovementSuggestion[];
+        
+        for await (const chunk of response) {
+            yield chunk.text;
+        }
     } catch (error) {
-        console.error("Error getting improvement suggestions:", error);
-        return [{ topic: "Error", suggestion: "Could not generate improvement suggestions at this time." }];
+        console.error("Error getting improvement suggestions stream:", error);
+        yield "Could not generate improvement suggestions at this time due to an error.";
     }
 };

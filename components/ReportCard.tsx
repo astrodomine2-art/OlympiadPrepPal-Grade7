@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuizResult, Question, ImprovementSuggestion, Subject, Grade } from '../types';
+import { QuizResult, Question, Subject, Grade } from '../types';
 import { getImprovementSuggestions } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
@@ -14,7 +14,8 @@ interface ReportCardProps {
 }
 
 const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQuiz, onPracticeTopic }) => {
-  const [suggestions, setSuggestions] = useState<ImprovementSuggestion[]>([]);
+  const [suggestionsText, setSuggestionsText] = useState<string>('');
+  const [parsedTopics, setParsedTopics] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
   const [shownExplanations, setShownExplanations] = useState<Set<string>>(new Set());
 
@@ -48,6 +49,9 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
   useEffect(() => {
     const fetchSuggestions = async () => {
       setLoadingSuggestions(true);
+      setSuggestionsText('');
+      setParsedTopics([]);
+
       const incorrectlyAnswered = result.questions
         .map((q, index) => ({ question: q, userAnswerIndex: result.userAnswers[index] }))
         .filter(item => item.userAnswerIndex !== item.question.correctAnswerIndex)
@@ -59,12 +63,30 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
         }));
       
       if (incorrectlyAnswered.length === 0) {
-          setSuggestions([]);
-      } else {
-        const response = await getImprovementSuggestions(incorrectlyAnswered, result.grade);
-        setSuggestions(response);
+          setLoadingSuggestions(false);
+          return;
       }
-      setLoadingSuggestions(false);
+      
+      try {
+        const stream = getImprovementSuggestions(incorrectlyAnswered, result.grade);
+        
+        let fullText = '';
+        for await (const chunk of stream) {
+            fullText += chunk;
+            setSuggestionsText(prev => prev + chunk);
+        }
+
+        // Post-processing to find topics for buttons
+        const topicRegex = /\*\*Topic: (.*?)\*\*/g;
+        const topics = [...fullText.matchAll(topicRegex)].map(match => match[1]);
+        setParsedTopics(topics);
+
+      } catch (error) {
+        console.error("Error processing suggestions stream:", error);
+        setSuggestionsText("Could not load suggestions due to an error.");
+      } finally {
+        setLoadingSuggestions(false);
+      }
     };
     fetchSuggestions();
   }, [result]);
@@ -90,7 +112,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
   const renderSuggestion = (text: string) => {
     const html = text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br />'); // Render newlines
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
@@ -128,28 +151,36 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
         <h2 className="text-2xl font-bold text-slate-700 mb-4">
           {percentage === 100 ? "Excellent Work!" : "Areas for Improvement"}
         </h2>
-        {loadingSuggestions ? <Spinner message="Generating personalized feedback..." /> : 
-         percentage === 100 ? (
+        {loadingSuggestions && !suggestionsText && <Spinner message="Generating personalized feedback..." />}
+        
+        {percentage === 100 ? (
             <div className="text-center py-4">
               <div className="inline-block bg-green-100 text-green-800 font-bold p-4 rounded-lg shadow-md">
                 🎉 Perfect Score! Keep up the fantastic work! 🎉
               </div>
             </div>
-         ) :
-         suggestions.length > 0 ? (
-          <div className="space-y-4">
-            {suggestions.map((item, index) => (
-              <div key={index} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="font-bold text-slate-800 mb-2">Topic: {item.topic}</p>
-                  <div className="text-slate-600 mb-3">{renderSuggestion(item.suggestion)}</div>
-                  <Button onClick={() => onPracticeTopic(result.subject, result.grade, item.topic)} variant="secondary" className="py-1 px-3 text-sm">
-                    Practice this Topic
-                  </Button>
-              </div>
-            ))}
-          </div>
-        ) : (
+         ) : !loadingSuggestions && !suggestionsText ? (
           <p className="text-slate-600">Could not load suggestions, but good job on completing the quiz!</p>
+        ) : (
+          suggestionsText && (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 prose max-w-none">
+                {renderSuggestion(suggestionsText)}
+              </div>
+              {!loadingSuggestions && parsedTopics.length > 0 && (
+                <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
+                  <p className="font-bold text-slate-800 mb-3">Practice these topics:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {parsedTopics.map(topic => (
+                      <Button key={topic} onClick={() => onPracticeTopic(result.subject, result.grade, topic)} variant="secondary" className="py-1 px-3 text-sm">
+                        {topic}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
         )}
       </Card>
 
