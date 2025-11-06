@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { QuizResult, Question } from '../types';
+import { QuizResult, Question, ImprovementSuggestion, Subject, Grade } from '../types';
 import { getImprovementSuggestions } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
 import Spinner from './Spinner';
+import Confetti from './Confetti';
 
 interface ReportCardProps {
   result: QuizResult;
   onBackToHome: () => void;
   onRetakeQuiz: () => void;
+  onPracticeTopic: (subject: Subject, grade: Grade, topic: string) => void;
 }
 
-const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQuiz }) => {
-  const [suggestions, setSuggestions] = useState<string>('');
+const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQuiz, onPracticeTopic }) => {
+  const [suggestions, setSuggestions] = useState<ImprovementSuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(true);
   const [shownExplanations, setShownExplanations] = useState<Set<string>>(new Set());
 
@@ -41,16 +43,30 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
 
   }, [result]);
 
+  const percentage = Math.round((result.score / result.questions.length) * 100);
+
   useEffect(() => {
     const fetchSuggestions = async () => {
       setLoadingSuggestions(true);
-      const incorrectlyAnswered = result.questions.filter((_, index) => result.userAnswers[index] !== result.questions[index].correctAnswerIndex);
-      const response = await getImprovementSuggestions(incorrectlyAnswered);
-      setSuggestions(response);
+      const incorrectlyAnswered = result.questions
+        .map((q, index) => ({ question: q, userAnswerIndex: result.userAnswers[index] }))
+        .filter(item => item.userAnswerIndex !== item.question.correctAnswerIndex)
+        .map(item => ({
+            questionText: item.question.questionText,
+            topic: item.question.topic,
+            userAnswer: item.userAnswerIndex !== null ? item.question.options[item.userAnswerIndex] : "No answer",
+            correctAnswer: item.question.options[item.question.correctAnswerIndex]
+        }));
+      
+      if (incorrectlyAnswered.length === 0) {
+          setSuggestions([]);
+      } else {
+        const response = await getImprovementSuggestions(incorrectlyAnswered, result.grade);
+        setSuggestions(response);
+      }
       setLoadingSuggestions(false);
     };
     fetchSuggestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
   
   const handleToggleExplanation = (questionId: string) => {
@@ -65,35 +81,22 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
     });
   };
 
-  const percentage = Math.round((result.score / result.questions.length) * 100);
-
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}m ${secs}s`;
   };
 
-  const renderMarkdown = (text: string) => {
-    // FIX: Replaced the buggy markdown-to-HTML conversion with a more robust implementation.
-    // The new implementation correctly handles list blocks and different bullet point styles (*, -, •),
-    // and uses non-greedy matching for bold and italic styles to prevent incorrect rendering.
+  const renderSuggestion = (text: string) => {
     const html = text
-      .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold text-slate-700 mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-slate-800 mt-6 mb-3">$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-extrabold text-slate-900 mt-8 mb-4">$1</h1>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/^\s*[•*-]\s(.*$)/gim, '<li>$1</li>')
-      .replace(/<\/li>\n<li>/g, '</li><li>') // Join consecutive list items
-      .replace(/(<li>.*<\/li>)/gs, '<ul class="space-y-2 list-disc pl-6">$1</ul>') // Wrap in ul
-      .replace(/\n/g, '<br />'); // Convert remaining newlines
-
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
+      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
-
 
   return (
     <div className="w-full max-w-5xl mx-auto p-4 space-y-6">
+      {percentage >= 90 && <Confetti />}
       <Card>
         <h1 className="text-3xl md:text-4xl font-extrabold text-center text-slate-800 mb-6">{result.isMock ? 'Mock Exam' : 'Quiz'} Report (Grade {result.grade})</h1>
         
@@ -122,9 +125,31 @@ const ReportCard: React.FC<ReportCardProps> = ({ result, onBackToHome, onRetakeQ
       </Card>
       
       <Card>
-        <h2 className="text-2xl font-bold text-slate-700 mb-4">Areas for Improvement</h2>
-        {loadingSuggestions ? <Spinner message="Generating personalized feedback..." /> : (
-            <div className="prose max-w-none text-slate-600">{renderMarkdown(suggestions)}</div>
+        <h2 className="text-2xl font-bold text-slate-700 mb-4">
+          {percentage === 100 ? "Excellent Work!" : "Areas for Improvement"}
+        </h2>
+        {loadingSuggestions ? <Spinner message="Generating personalized feedback..." /> : 
+         percentage === 100 ? (
+            <div className="text-center py-4">
+              <div className="inline-block bg-green-100 text-green-800 font-bold p-4 rounded-lg shadow-md">
+                🎉 Perfect Score! Keep up the fantastic work! 🎉
+              </div>
+            </div>
+         ) :
+         suggestions.length > 0 ? (
+          <div className="space-y-4">
+            {suggestions.map((item, index) => (
+              <div key={index} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="font-bold text-slate-800 mb-2">Topic: {item.topic}</p>
+                  <div className="text-slate-600 mb-3">{renderSuggestion(item.suggestion)}</div>
+                  <Button onClick={() => onPracticeTopic(result.subject, result.grade, item.topic)} variant="secondary" className="py-1 px-3 text-sm">
+                    Practice this Topic
+                  </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-slate-600">Could not load suggestions, but good job on completing the quiz!</p>
         )}
       </Card>
 

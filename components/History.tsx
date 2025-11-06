@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { QuizResult, Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
@@ -127,10 +127,17 @@ interface HistoryProps {
   history: QuizResult[];
   onBackToHome: () => void;
   onViewReport: (result: QuizResult) => void;
+  onPracticeMistakes: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }) => {
+const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport, onPracticeMistakes }) => {
   const [trends, setTrends] = useState<TrendData | null>(null);
+
+  const hasMistakes = useMemo(() => {
+    return history.some(result =>
+      result.userAnswers.some((ans, idx) => ans !== result.questions[idx].correctAnswerIndex)
+    );
+  }, [history]);
 
   useEffect(() => {
     if(history.length > 0) {
@@ -146,12 +153,20 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }
             <Button onClick={onBackToHome} variant="secondary">Back to Home</Button>
         </div>
 
+      <Card>
+          <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">Study Tools</h2>
+          <div className="flex justify-center">
+            <Button onClick={onPracticeMistakes} disabled={!hasMistakes} title={!hasMistakes ? "Take a quiz and get some questions wrong to enable this feature." : "Practice questions you've answered incorrectly"}>
+                Practice Past Mistakes
+            </Button>
+          </div>
+      </Card>
+
       {trends && Object.keys(trends).length > 0 && (
         <Card>
             <h2 className="text-2xl font-bold text-slate-700 mb-4 border-b pb-3">Performance Trends</h2>
             <div className="space-y-6">
                 {Object.entries(trends).map(([subject, subjectData]) => {
-                    // FIX: Cast `subjectData` which is inferred as `unknown` by Object.entries to its correct type to resolve property access errors.
                     const typedSubjectData = subjectData as TrendData[string];
                     return (
                     <div key={subject}>
@@ -163,7 +178,6 @@ const History: React.FC<HistoryProps> = ({ history, onBackToHome, onViewReport }
                         <div className="ml-2 mt-3 space-y-1">
                             <h4 className="font-semibold text-slate-600 mb-1">Topic Breakdown:</h4>
                             {Object.entries(typedSubjectData.topics).map(([topic, topicData]) => {
-                                // FIX: Cast `topicData` which is inferred as `unknown` to its correct type.
                                 const typedTopicData = topicData as { trend: Trend; scores: number[] };
                                 return (
                                 <div key={topic} className="flex justify-between items-center text-sm">

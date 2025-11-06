@@ -38,6 +38,19 @@ export interface QuizResult {
   originalQuestions?: Question[]; // The state of questions before any revalidation.
 }
 
+export interface ImprovementSuggestion {
+  topic: string;
+  suggestion: string;
+}
+
+export interface IncorrectAnswerDetail {
+  questionText: string;
+  topic: string;
+  userAnswer: string;
+  correctAnswer: string;
+}
+
+
 export const IMO_TOPICS = [
   "Number Systems",
   "Algebra",

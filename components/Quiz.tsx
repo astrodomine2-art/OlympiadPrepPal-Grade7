@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Question, QuizResult, Grade } from '../types';
+import { Question, QuizResult } from '../types';
 import { revalidateQuestion } from '../services/geminiService';
 import Button from './common/Button';
 import Card from './common/Card';
@@ -7,16 +7,18 @@ import Card from './common/Card';
 interface QuizProps {
   questions: Question[];
   isMock: boolean;
+  instantFeedback: boolean;
   onQuizComplete: (result: QuizResult) => void;
   onQuestionRevalidated: (index: number, updatedQuestion: Question) => void;
 }
 
-const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuestionRevalidated }) => {
+const Quiz: React.FC<QuizProps> = ({ questions, isMock, instantFeedback, onQuizComplete, onQuestionRevalidated }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [startTime, setStartTime] = useState(Date.now());
   const timerIntervalRef = useRef<number | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
   
   const mockDuration = questions.length * 60; // 60 seconds per question
   const [timeLeft, setTimeLeft] = useState(mockDuration);
@@ -31,7 +33,8 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
 
-  const prevQuestionsRef = useRef<Question[]>();
+  // FIX: Explicitly initialize useRef with `undefined` to resolve "Expected 1 arguments, but got 0" error.
+  const prevQuestionsRef = useRef<Question[] | undefined>(undefined);
   useEffect(() => {
     prevQuestionsRef.current = questions;
   });
@@ -179,6 +182,9 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
 
   const handleOptionSelect = (optionIndex: number) => {
     setSelectedOption(optionIndex);
+    if (instantFeedback) {
+        setShowAnswer(true);
+    }
   };
 
   const handleNext = () => {
@@ -186,6 +192,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
     newAnswers[currentQuestionIndex] = selectedOption;
     setUserAnswers(newAnswers);
     setSelectedOption(null);
+    setShowAnswer(false);
     setCurrentQuestionIndex(prev => prev + 1);
   };
 
@@ -217,6 +224,7 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
   
   const handleJumpToQuestion = (index: number) => {
     setCurrentQuestionIndex(index);
+    setShowAnswer(false);
     setIsNavigatorOpen(false);
   };
   
@@ -337,22 +345,44 @@ const Quiz: React.FC<QuizProps> = ({ questions, isMock, onQuizComplete, onQuesti
           )}
         </div>
         
-        <div className={`space-y-3 mt-6 transition-opacity duration-300 ${isRevalidating ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-          {currentQuestion.options.map((option, index) => (
-            <button
-              key={index}
-              onClick={() => handleOptionSelect(index)}
-              className={`w-full text-left p-4 rounded-lg border-2 transition text-slate-700 ${
-                selectedOption === index 
-                  ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-500' 
-                  : 'bg-white border-slate-300 hover:bg-slate-50 hover:border-slate-400'
-              }`}
-            >
-              <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
-              {option}
-            </button>
-          ))}
+        <div className={`space-y-3 mt-6`}>
+          {currentQuestion.options.map((option, index) => {
+            const isSelected = selectedOption === index;
+            const isCorrect = index === currentQuestion.correctAnswerIndex;
+            let buttonClass = 'bg-white border-slate-300 hover:bg-slate-50 hover:border-slate-400';
+
+            if (instantFeedback && showAnswer) {
+                if (isCorrect) {
+                    buttonClass = 'bg-green-100 border-green-500 ring-2 ring-green-500';
+                } else if (isSelected) {
+                    buttonClass = 'bg-red-100 border-red-500';
+                } else {
+                    buttonClass = 'bg-slate-50 border-slate-200 text-slate-500';
+                }
+            } else if (isSelected) {
+                buttonClass = 'bg-blue-100 border-blue-500 ring-2 ring-blue-500';
+            }
+
+            return (
+              <button
+                key={index}
+                onClick={() => handleOptionSelect(index)}
+                disabled={instantFeedback && showAnswer}
+                className={`w-full text-left p-4 rounded-lg border-2 transition text-slate-700 disabled:cursor-not-allowed ${buttonClass}`}
+              >
+                <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>
+                {option}
+              </button>
+            );
+          })}
         </div>
+
+        {instantFeedback && showAnswer && (
+            <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-700">Explanation:</p>
+                <p className="text-slate-600">{currentQuestion.explanation}</p>
+            </div>
+        )}
 
         <div className="mt-8 pt-6 border-t flex justify-between items-center">
           <div className="flex items-center space-x-2 h-10">

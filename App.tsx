@@ -22,7 +22,9 @@ const App: React.FC = () => {
   }>({ active: false, message: '', progress: 0 });
   const [error, setError] = useState<string | null>(null);
   const [isMock, setIsMock] = useState<boolean>(false);
+  const [instantFeedbackMode, setInstantFeedbackMode] = useState<boolean>(false);
   const [quizGrade, setQuizGrade] = useState<Grade>(7);
+  const [prefilledSetup, setPrefilledSetup] = useState<{ subject: Subject; grade: Grade; topic: string } | null>(null);
 
   useEffect(() => {
     // Seed the question bank from JSON on first load if it's empty.
@@ -37,7 +39,6 @@ const App: React.FC = () => {
           setQuestionBank(data);
         } catch (err) {
           console.error("Failed to load initial question bank:", err);
-          // Set a default empty array to avoid repeated fetch attempts on error
           setQuestionBank([]); 
         }
       }
@@ -46,15 +47,15 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
-  const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean, grade: Grade) => {
+  const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean, grade: Grade, instantFeedback: boolean) => {
     setError(null);
     setIsMock(isMockFlag);
+    setInstantFeedbackMode(instantFeedback);
     setQuizGrade(grade);
     setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
     
     const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
     
-    // 1. Filter local question bank from localStorage
     const localQuestions = questionBank.filter(q =>
         q.subject === subject &&
         q.grade === grade &&
@@ -67,14 +68,11 @@ const App: React.FC = () => {
     const questionsFromBank = localQuestions.slice(0, count);
     const remainingCount = count - questionsFromBank.length;
 
-    // Fast path: For long quizzes (>5 questions), start immediately with local questions
-    // and fetch the rest in the background.
     if (count > 5 && questionsFromBank.length > 0) {
         setQuizQuestions(questionsFromBank);
         setView('quiz');
         setLoadingState({ active: false, message: '', progress: 0 });
 
-        // --- Background Fetch ---
         if (remainingCount > 0) {
             try {
                 const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
@@ -91,13 +89,11 @@ const App: React.FC = () => {
                 }
             } catch (backgroundError) {
                 console.error("Failed to fetch background questions:", backgroundError);
-                // This is a non-critical error as the user already has a quiz.
             }
         }
-        return; // End of fast path logic.
+        return;
     }
 
-    // Slow path: For short quizzes or when no local questions are found, load everything upfront.
     try {
         await new Promise(res => setTimeout(res, 300));
         setLoadingState(prev => ({ ...prev, message: 'Searching our question bank...', progress: 10 }));
@@ -157,7 +153,6 @@ const App: React.FC = () => {
   }, [history, questionBank, setQuestionBank]);
   
   const handleQuizComplete = useCallback(async (result: QuizResult) => {
-    // For custom quizzes, revalidate incorrect answers before showing the report.
     if (!result.isMock) {
         setLoadingState({ active: true, message: 'AI is verifying your answers...', progress: 0 });
         try {
@@ -166,7 +161,6 @@ const App: React.FC = () => {
                 .map((q, i) => result.userAnswers[i] !== q.correctAnswerIndex ? i : -1)
                 .filter(i => i !== -1);
 
-            // If all answers are correct, no need to revalidate.
             if (incorrectIndices.length === 0) {
                 const finalResult = { ...result, grade: quizGrade, originalQuestions: originalQuestions };
                 setCurrentResult(finalResult);
@@ -216,7 +210,6 @@ const App: React.FC = () => {
             setLoadingState({ active: false, message: '', progress: 0 });
         }
     } else {
-        // For mock exams, revalidation was done in the background.
         const resultWithGrade = { ...result, grade: quizGrade };
         setCurrentResult(resultWithGrade);
         setHistory(prev => [...prev, resultWithGrade].slice(-10));
@@ -251,6 +244,34 @@ const App: React.FC = () => {
     setError(null);
   };
   
+  const handlePracticeTopic = (subject: Subject, grade: Grade, topic: string) => {
+      setPrefilledSetup({ subject, grade, topic });
+      setView('setup');
+  };
+  
+  const handlePracticeMistakes = () => {
+      const incorrectQuestionsMap = new Map<string, Question>();
+      history.forEach(result => {
+        result.questions.forEach((q, index) => {
+          if (result.userAnswers[index] !== q.correctAnswerIndex) {
+            incorrectQuestionsMap.set(q.id, q);
+          }
+        });
+      });
+
+      const questions = Array.from(incorrectQuestionsMap.values());
+      if (questions.length > 0) {
+        questions.sort(() => Math.random() - 0.5); // Shuffle
+        setQuizQuestions(questions);
+        setIsMock(false);
+        setInstantFeedbackMode(true);
+        setQuizGrade(questions[0].grade);
+        setView('quiz');
+      } else {
+        alert("You have no past mistakes to practice. Great job!");
+      }
+  };
+  
   const renderContent = () => {
     if (loadingState.active) {
       return (
@@ -276,14 +297,14 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'quiz':
-        return <Quiz questions={quizQuestions} isMock={isMock} onQuizComplete={handleQuizComplete} onQuestionRevalidated={handleQuestionRevalidated} />;
+        return <Quiz questions={quizQuestions} isMock={isMock} instantFeedback={instantFeedbackMode} onQuizComplete={handleQuizComplete} onQuestionRevalidated={handleQuestionRevalidated} />;
       case 'report':
-        return currentResult && <ReportCard result={currentResult} onBackToHome={resetToHome} onRetakeQuiz={resetToHome} />;
+        return currentResult && <ReportCard result={currentResult} onBackToHome={resetToHome} onRetakeQuiz={resetToHome} onPracticeTopic={handlePracticeTopic} />;
       case 'history':
-        return <History history={history} onBackToHome={resetToHome} onViewReport={handleViewReportFromHistory} />;
+        return <History history={history} onBackToHome={resetToHome} onViewReport={handleViewReportFromHistory} onPracticeMistakes={handlePracticeMistakes} />;
       case 'setup':
       default:
-        return <QuizSetup onStartQuiz={handleStartQuiz} onViewHistory={handleViewHistory} />;
+        return <QuizSetup onStartQuiz={handleStartQuiz} onViewHistory={handleViewHistory} prefilledSetup={prefilledSetup} onPrefillConsumed={() => setPrefilledSetup(null)} />;
     }
   };
 

@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Subject, IMO_TOPICS, NSO_TOPICS, IEO_TOPICS, ICSO_TOPICS, Difficulty, Grade, IMO_TOPICS_GRADE6, NSO_TOPICS_GRADE6, IEO_TOPICS_GRADE6, ICSO_TOPICS_GRADE6 } from '../types';
 import Button from './common/Button';
 import Card from './common/Card';
 
 interface QuizSetupProps {
-  onStartQuiz: (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMock: boolean, grade: Grade) => void;
+  onStartQuiz: (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMock: boolean, grade: Grade, instantFeedback: boolean) => void;
   onViewHistory: () => void;
+  prefilledSetup: { subject: Subject; grade: Grade; topic: string; } | null;
+  onPrefillConsumed: () => void;
 }
 
-const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => {
+const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory, prefilledSetup, onPrefillConsumed }) => {
   const [grade, setGrade] = useState<Grade>(7);
   const [subject, setSubject] = useState<Subject>(Subject.IMO);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [numQuestions, setNumQuestions] = useState<number>(10);
   const [difficulty, setDifficulty] = useState<Difficulty>('Medium');
+  const [instantFeedback, setInstantFeedback] = useState<boolean>(false);
 
   const topics = (() => {
     const gradeTopics = grade === 7 
@@ -21,6 +24,21 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
         : { IMO: IMO_TOPICS_GRADE6, NSO: NSO_TOPICS_GRADE6, IEO: IEO_TOPICS_GRADE6, ICSO: ICSO_TOPICS_GRADE6 };
     return gradeTopics[subject] || [];
   })();
+
+  useEffect(() => {
+    if (prefilledSetup) {
+      setGrade(prefilledSetup.grade);
+      setSubject(prefilledSetup.subject);
+      // Wait for the topics list to update based on new grade/subject
+      setTimeout(() => {
+        setSelectedTopics([prefilledSetup.topic]);
+      }, 0);
+      setNumQuestions(10);
+      setDifficulty('Medium');
+      setInstantFeedback(false);
+      onPrefillConsumed();
+    }
+  }, [prefilledSetup, onPrefillConsumed]);
 
   const handleGradeChange = (newGrade: Grade) => {
     setGrade(newGrade);
@@ -44,14 +62,12 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
       alert("Please select at least one topic.");
       return;
     }
-    onStartQuiz(subject, selectedTopics, numQuestions, difficulty, false, grade);
+    onStartQuiz(subject, selectedTopics, numQuestions, difficulty, false, grade, instantFeedback);
   };
   
   const handleStartMock = (mockNum: number) => {
-     // For Grade 7, IMO has 35 questions. NSO, IEO, and ICSO have 50.
-     // For Grade 6, all Olympiads have fewer questions, we'll use a standard of 35.
      const mockQuestions = grade === 7 ? (subject === Subject.IMO ? 35 : 50) : 35;
-     onStartQuiz(subject, topics, mockQuestions, 'Hard', true, grade);
+     onStartQuiz(subject, topics, mockQuestions, 'Hard', true, grade, false); // Instant feedback is disabled for mock exams
   };
 
   return (
@@ -146,6 +162,24 @@ const QuizSetup: React.FC<QuizSetupProps> = ({ onStartQuiz, onViewHistory }) => 
                         </button>
                     );
                 })}
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-lg font-semibold text-slate-700 mb-2">5. Quiz Mode</label>
+             <div 
+                className="flex items-center p-3 rounded-lg cursor-pointer bg-slate-100 hover:bg-slate-200 transition"
+                onClick={() => setInstantFeedback(!instantFeedback)}
+                role="checkbox"
+                aria-checked={instantFeedback}
+             >
+                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mr-3 transition ${instantFeedback ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                    {instantFeedback && <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <div>
+                    <span className="font-semibold text-slate-800">Instant Feedback Mode</span>
+                    <p className="text-sm text-slate-600">See the correct answer and explanation after each question.</p>
+                </div>
             </div>
           </div>
         </div>

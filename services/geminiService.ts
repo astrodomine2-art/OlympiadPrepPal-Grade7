@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Subject, Difficulty, Grade } from '../types';
+import { Question, Subject, Difficulty, Grade, IncorrectAnswerDetail, ImprovementSuggestion } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
@@ -313,30 +312,50 @@ export const revalidateQuestion = async (question: Question): Promise<Question> 
     }
 };
 
-export const getImprovementSuggestions = async (incorrectlyAnswered: Question[]): Promise<string> => {
+const suggestionSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            topic: { type: Type.STRING },
+            suggestion: { type: Type.STRING }
+        },
+        required: ['topic', 'suggestion']
+    }
+};
+
+export const getImprovementSuggestions = async (incorrectlyAnswered: IncorrectAnswerDetail[], grade: Grade): Promise<ImprovementSuggestion[]> => {
     if(incorrectlyAnswered.length === 0) {
-        return "Excellent work! You answered all questions correctly. Keep practicing to maintain this great performance.";
+        return [];
     }
 
-    const topics = incorrectlyAnswered.map(q => q.topic).join(', ');
-    const grade = incorrectlyAnswered[0]?.grade || 7;
+    const mistakesContext = incorrectlyAnswered.map(item => 
+        `- Topic: ${item.topic}, Question: "${item.questionText}", Their incorrect answer: "${item.userAnswer}", Correct answer: "${item.correctAnswer}"`
+    ).join('\n');
 
     const prompt = `
-        A Grade ${grade} student preparing for the Olympiad exams answered some questions incorrectly.
-        Here are the topics of the questions they got wrong: ${topics}.
+        A Grade ${grade} student preparing for the Olympiad exams made the following mistakes:
+        ${mistakesContext}
         
-        Based on these topics, provide a concise analysis of their weak areas and suggest 3-4 specific, actionable areas for improvement.
-        Format the response as a markdown string. Start with a heading "Areas for Improvement". Use bullet points for the suggestions.
+        Based on this specific list of mistakes, provide a concise analysis of their potential misunderstandings. For each distinct topic they struggled with, give one specific, actionable suggestion for improvement. Your suggestions should directly address the concepts they got wrong.
+        
+        Return the result as a JSON array, where each object contains a "topic" and a "suggestion" field.
     `;
     
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: suggestionSchema
+            }
         });
-        return response.text;
+        const jsonText = response.text.trim();
+        if (!jsonText) return [];
+        return JSON.parse(jsonText) as ImprovementSuggestion[];
     } catch (error) {
         console.error("Error getting improvement suggestions:", error);
-        return "Could not generate improvement suggestions at this time.";
+        return [{ topic: "Error", suggestion: "Could not generate improvement suggestions at this time." }];
     }
 };
