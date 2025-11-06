@@ -1,3 +1,4 @@
+
 export enum Subject {
     IMO = 'IMO',
     NSO = 'NSO',
@@ -61,17 +62,39 @@ export type BadgeId =
   | 'firstQuiz'
   | 'perfectScore'
   | 'hotStreak'
-  | 'subjectPro'
+  | 'subjectSovereign'
   | 'mockMaster'
   | 'quickThinker'
   | 'studyHabit'
   | 'revalidator'
   | 'topicExplorer'
-  | 'centuryClub';
+  | 'centuryClub'
+  | 'quizArchitect'
+  | 'marathoner'
+  | 'brainiac'
+  | 'topicTitan'
+  | 'polymath'
+  | 'examAce'
+  | 'veteranExaminer'
+  | 'comebackKid';
 
 export interface Badge {
     id: BadgeId;
     name: string;
     description: string;
     icon: string; // Emoji or SVG name
+}
+
+export interface UserStats {
+  quizzesCompleted: number;
+  perfectScores: number;
+  hotStreak: number;
+  completedOnDates: string[];
+  subjectsMastered: Partial<Record<Subject, boolean>>;
+  mockExamsCompleted: number;
+  totalCorrectAnswers: number;
+  revalidationUsed: boolean;
+  practicedFromSuggestion: boolean;
+  topicsPracticed: string[];
+  mockExamScores: Partial<Record<Subject, number[]>>;
 }
