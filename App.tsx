@@ -1,307 +1,241 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { AppView, Question, QuizResult, Subject, Difficulty, Grade } from './types';
-import useLocalStorage from './hooks/useLocalStorage';
-import { generateQuestions, revalidateQuestion } from './services/geminiService';
-
+import React, { useState, useEffect, useCallback } from 'react';
 import QuizSetup from './components/QuizSetup';
 import Quiz from './components/Quiz';
 import ReportCard from './components/ReportCard';
 import History from './components/History';
 import Spinner from './components/Spinner';
+import { generateQuestions } from './services/geminiService';
+import { Question, QuizResult, Subject, Difficulty, Grade, Badge, BadgeId } from './types';
+import useLocalStorage from './hooks/useLocalStorage';
+import { BADGE_DEFS } from './components/gamification/BadgeDefs';
+import BadgeNotification from './components/gamification/BadgeNotification';
+
+type View = 'setup' | 'quiz' | 'report' | 'history';
+
+interface QuizSettings {
+  subject: Subject;
+  topics: string[];
+  count: number;
+  difficulty: Difficulty;
+  isMock: boolean;
+  grade: Grade;
+  instantFeedback: boolean;
+}
+
+interface UserStats {
+  quizzesCompleted: number;
+  perfectScores: number;
+  hotStreak: number;
+  completedOnDates: string[];
+  subjectsMastered: Partial<Record<Subject, boolean>>;
+  mockExamsCompleted: number;
+  totalCorrectAnswers: number;
+  revalidationUsed: boolean;
+  practicedFromSuggestion: boolean;
+}
 
 const App: React.FC = () => {
-  const [view, setView] = useState<AppView>('setup');
-  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
-  const [currentResult, setCurrentResult] = useState<QuizResult | null>(null);
+  const [currentView, setCurrentView] = useState<View>('setup');
+  const [quizSettings, setQuizSettings] = useState<QuizSettings | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [history, setHistory] = useLocalStorage<QuizResult[]>('quizHistory', []);
-  const [questionBank, setQuestionBank] = useLocalStorage<Question[]>('questionBank', []);
-  const [loadingState, setLoadingState] = useState<{
-    active: boolean;
-    message: string;
-    progress: number;
-  }>({ active: false, message: '', progress: 0 });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [isMock, setIsMock] = useState<boolean>(false);
-  const [instantFeedbackMode, setInstantFeedbackMode] = useState<boolean>(false);
-  const [quizGrade, setQuizGrade] = useState<Grade>(7);
-  const [prefilledSetup, setPrefilledSetup] = useState<{ subject: Subject; grade: Grade; topic: string } | null>(null);
+  const [prefilledSetup, setPrefilledSetup] = useState<{ subject: Subject; grade: Grade; topic: string; } | null>(null);
+  
+  // Gamification state
+  const [unlockedBadges, setUnlockedBadges] = useLocalStorage<BadgeId[]>('unlockedBadges', []);
+  const [userStats, setUserStats] = useLocalStorage<UserStats>('userStats', {
+    quizzesCompleted: 0,
+    perfectScores: 0,
+    hotStreak: 0,
+    completedOnDates: [],
+    subjectsMastered: {},
+    mockExamsCompleted: 0,
+    totalCorrectAnswers: 0,
+    revalidationUsed: false,
+    practicedFromSuggestion: false,
+  });
+  const [badgeQueue, setBadgeQueue] = useState<Badge[]>([]);
 
-  useEffect(() => {
-    // Seed the question bank from JSON on first load if it's empty.
-    const seedQuestionBank = async () => {
-      if (questionBank.length === 0) {
-        try {
-          const response = await fetch('/questions.json');
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data: Question[] = await response.json();
-          setQuestionBank(data);
-        } catch (err) {
-          console.error("Failed to load initial question bank:", err);
-          setQuestionBank([]); 
-        }
-      }
-    };
-    seedQuestionBank();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
-
-  const handleStartQuiz = useCallback(async (subject: Subject, topics: string[], count: number, difficulty: Difficulty, isMockFlag: boolean, grade: Grade, instantFeedback: boolean) => {
-    setError(null);
-    setIsMock(isMockFlag);
-    setInstantFeedbackMode(instantFeedback);
-    setQuizGrade(grade);
-    setLoadingState({ active: true, message: 'Preparing your quiz...', progress: 0 });
-    
-    const existingQuestionIds = new Set(history.flatMap(h => h.questions.map(q => q.id)));
-    
-    const localQuestions = questionBank.filter(q =>
-        q.subject === subject &&
-        q.grade === grade &&
-        topics.includes(q.topic) &&
-        q.difficulty === difficulty &&
-        !existingQuestionIds.has(q.id)
-    );
-    
-    localQuestions.sort(() => Math.random() - 0.5);
-    const questionsFromBank = localQuestions.slice(0, count);
-    const remainingCount = count - questionsFromBank.length;
-
-    if (count > 5 && questionsFromBank.length > 0) {
-        setQuizQuestions(questionsFromBank);
-        setView('quiz');
-        setLoadingState({ active: false, message: '', progress: 0 });
-
-        if (remainingCount > 0) {
-            try {
-                const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
-                const aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds, grade);
-                
-                if (aiQuestions.length > 0) {
-                    setQuizQuestions(prevQuestions => [...prevQuestions, ...aiQuestions]);
-                    setQuestionBank(prevBank => {
-                        const newQuestionsToAdd = aiQuestions.filter(
-                            aiQ => !prevBank.some(bankQ => bankQ.id === aiQ.id)
-                        );
-                        return [...prevBank, ...newQuestionsToAdd];
-                    });
-                }
-            } catch (backgroundError) {
-                console.error("Failed to fetch background questions:", backgroundError);
-            }
-        }
-        return;
+  const showNextBadge = () => {
+    setBadgeQueue(prev => prev.slice(1));
+  };
+  
+  const unlockBadge = useCallback((badgeId: BadgeId) => {
+    if (!unlockedBadges.includes(badgeId)) {
+      setUnlockedBadges(prev => [...prev, badgeId]);
+      setBadgeQueue(prev => [...prev, BADGE_DEFS[badgeId]]);
     }
+  }, [unlockedBadges, setUnlockedBadges]);
+
+  const handleStartQuiz = async (
+    subject: Subject,
+    topics: string[],
+    count: number,
+    difficulty: Difficulty,
+    isMock: boolean,
+    grade: Grade,
+    instantFeedback: boolean
+  ) => {
+    setIsLoading(true);
+    setLoadingMessage(isMock ? 'Generating your mock exam... This might take a moment.' : 'Generating your custom quiz...');
+    setError(null);
+    setQuizSettings({ subject, topics, count, difficulty, isMock, grade, instantFeedback });
 
     try {
-        await new Promise(res => setTimeout(res, 300));
-        setLoadingState(prev => ({ ...prev, message: 'Searching our question bank...', progress: 10 }));
-
-        await new Promise(res => setTimeout(res, 300));
-        setLoadingState(prev => ({ ...prev, message: `Found ${questionsFromBank.length} of ${count} questions locally.`, progress: 30 }));
-
-        let aiQuestions: Question[] = [];
-        if (remainingCount > 0) {
-            await new Promise(res => setTimeout(res, 300));
-            setLoadingState(prev => ({ ...prev, message: `Asking our AI for ${remainingCount} new questions...`, progress: 40 }));
-            
-            const allUsedIds = [...Array.from(existingQuestionIds), ...questionBank.map(q => q.id)];
-            aiQuestions = await generateQuestions(subject, topics, remainingCount, difficulty, allUsedIds, grade);
-            
-            await new Promise(res => setTimeout(res, 300));
-            setLoadingState(prev => ({ ...prev, progress: 80, message: 'Received new questions from AI!' }));
-
-            if (aiQuestions.length > 0) {
-              setQuestionBank(prevBank => {
-                  const newQuestionsToAdd = aiQuestions.filter(
-                      aiQ => !prevBank.some(bankQ => bankQ.id === aiQ.id)
-                  );
-                  return [...prevBank, ...newQuestionsToAdd];
-              });
-            }
-        }
-
-        const finalQuestions = [...questionsFromBank, ...aiQuestions];
-        
-        if (finalQuestions.length < count) {
-             console.warn(`Could only find ${finalQuestions.length} questions, but ${count} were requested.`);
-        }
-
-        if (finalQuestions.length === 0) {
-             throw new Error("Could not find or generate any questions for the selected criteria. Please try different topics or difficulties.");
-        }
-        
-        await new Promise(res => setTimeout(res, 300));
-        setLoadingState(prev => ({ ...prev, progress: 90, message: 'Finalizing and shuffling...' }));
-        finalQuestions.sort(() => Math.random() - 0.5);
-
-        setQuizQuestions(finalQuestions);
-
-        await new Promise(res => setTimeout(res, 300));
-        setLoadingState(prev => ({ ...prev, progress: 100, message: 'All set!' }));
-
-        await new Promise(res => setTimeout(res, 500));
-        setView('quiz');
-
+      const existingIds = history.flatMap(h => h.questions.map(q => q.id));
+      const fetchedQuestions = await generateQuestions(subject, topics, count, difficulty, existingIds, grade);
+      if (fetchedQuestions.length === 0) {
+        throw new Error("The AI didn't return any questions. Please try different topics or settings.");
+      }
+      setQuestions(fetchedQuestions);
+      setCurrentView('quiz');
     } catch (err) {
-        setError(err instanceof Error ? err.message : "An unknown error occurred.");
-        setView('setup');
+      setError(err instanceof Error ? err.message : 'An unknown error occurred while generating questions.');
+      setCurrentView('setup');
     } finally {
-        setLoadingState({ active: false, message: '', progress: 0 });
+      setIsLoading(false);
     }
-  }, [history, questionBank, setQuestionBank]);
-  
-  const handleQuizComplete = useCallback(async (result: QuizResult) => {
-    if (!result.isMock) {
-        setLoadingState({ active: true, message: 'AI is verifying your answers...', progress: 0 });
-        try {
-            const originalQuestions = result.questions;
-            const incorrectIndices = originalQuestions
-                .map((q, i) => result.userAnswers[i] !== q.correctAnswerIndex ? i : -1)
-                .filter(i => i !== -1);
+  };
 
-            if (incorrectIndices.length === 0) {
-                const finalResult = { ...result, grade: quizGrade, originalQuestions: originalQuestions };
-                setCurrentResult(finalResult);
-                setHistory(prev => [...prev, finalResult].slice(-10));
-                setView('report');
-                setLoadingState({ active: false, message: '', progress: 0 });
-                return;
-            }
+  const handleQuizComplete = (result: QuizResult) => {
+    const newHistory = [...history, result];
+    setHistory(newHistory);
+    setQuizResult(result);
+    setCurrentView('report');
 
-            const finalQuestions = [...originalQuestions];
-            let revalidatedCount = 0;
-            const numToRevalidate = incorrectIndices.length;
+    // --- Gamification Logic ---
+    const today = new Date().toDateString();
+    const newStats: UserStats = { ...userStats };
+    
+    newStats.quizzesCompleted = (newStats.quizzesCompleted || 0) + 1;
+    newStats.totalCorrectAnswers = (newStats.totalCorrectAnswers || 0) + result.score;
+    
+    if (!newStats.completedOnDates.includes(today)) {
+      newStats.completedOnDates.push(today);
+    }
+    
+    const percentage = (result.score / result.questions.length) * 100;
+    
+    if (percentage === 100 && result.questions.length >= 10) {
+      newStats.perfectScores = (newStats.perfectScores || 0) + 1;
+      unlockBadge('perfectScore');
+    }
 
-            const revalidationPromises = incorrectIndices.map(async (index) => {
-                const validatedQ = await revalidateQuestion(originalQuestions[index]);
-                finalQuestions[index] = validatedQ;
-                revalidatedCount++;
-                setLoadingState(prev => ({
-                    ...prev,
-                    progress: Math.round((revalidatedCount / numToRevalidate) * 100),
-                    message: `AI is verifying your answers... (${revalidatedCount}/${numToRevalidate})`
-                }));
-            });
-
-            await Promise.all(revalidationPromises);
-
-            const finalScore = finalQuestions.reduce((acc, q, index) => {
-                return result.userAnswers[index] === q.correctAnswerIndex ? acc + 1 : acc;
-            }, 0);
-
-            const finalResult: QuizResult = {
-                ...result,
-                questions: finalQuestions,
-                score: finalScore,
-                originalQuestions: originalQuestions,
-                grade: quizGrade,
-            };
-
-            setCurrentResult(finalResult);
-            setHistory(prev => [...prev, finalResult].slice(-10));
-            setView('report');
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to revalidate quiz answers.");
-            setView('setup');
-        } finally {
-            setLoadingState({ active: false, message: '', progress: 0 });
-        }
+    if (percentage >= 80) {
+      newStats.hotStreak = (newStats.hotStreak || 0) + 1;
     } else {
-        const resultWithGrade = { ...result, grade: quizGrade };
-        setCurrentResult(resultWithGrade);
-        setHistory(prev => [...prev, resultWithGrade].slice(-10));
-        setView('report');
+      newStats.hotStreak = 0;
     }
-  }, [setHistory, quizGrade]);
-  
-  const handleQuestionRevalidated = useCallback((questionIndex: number, updatedQuestion: Question) => {
-    setQuizQuestions(currentQuestions => {
-        if (currentQuestions[questionIndex] && JSON.stringify(currentQuestions[questionIndex]) !== JSON.stringify(updatedQuestion)) {
-            const newQuestions = [...currentQuestions];
-            newQuestions[questionIndex] = updatedQuestion;
-            return newQuestions;
-        }
-        return currentQuestions;
-    });
-  }, []);
-  
-  const handleViewHistory = () => {
-    setView('history');
+
+    if (result.isMock) {
+        newStats.mockExamsCompleted = (newStats.mockExamsCompleted || 0) + 1;
+        unlockBadge('mockMaster');
+    }
+    
+    setUserStats(newStats);
+    
+    // Check for badges
+    unlockBadge('firstQuiz');
+    if (newStats.hotStreak >= 3) unlockBadge('hotStreak');
+    if (newStats.completedOnDates.length >= 5) unlockBadge('studyHabit');
+    if (newStats.totalCorrectAnswers >= 100) unlockBadge('centuryClub');
+    const timePerQuestion = result.timeTaken / result.questions.length;
+    if (timePerQuestion < 45) unlockBadge('quickThinker');
   };
 
-  const handleViewReportFromHistory = (result: QuizResult) => {
-    setCurrentResult(result);
-    setView('report');
+  const handleRetakeQuiz = () => {
+    if (quizSettings) {
+      handleStartQuiz(
+        quizSettings.subject,
+        quizSettings.topics,
+        quizSettings.count,
+        quizSettings.difficulty,
+        quizSettings.isMock,
+        quizSettings.grade,
+        quizSettings.instantFeedback
+      );
+    } else {
+      setCurrentView('setup');
+    }
   };
 
-  const resetToHome = () => {
-    setView('setup');
-    setQuizQuestions([]);
-    setCurrentResult(null);
-    setError(null);
-  };
-  
   const handlePracticeTopic = (subject: Subject, grade: Grade, topic: string) => {
-      setPrefilledSetup({ subject, grade, topic });
-      setView('setup');
+     setPrefilledSetup({ subject, grade, topic });
+     setCurrentView('setup');
+     setUserStats(prev => ({...prev, practicedFromSuggestion: true}));
+     unlockBadge('topicExplorer');
+  };
+
+  const handleViewHistory = () => {
+    setCurrentView('history');
+  };
+
+  const handleBackToHome = () => {
+    setQuizResult(null);
+    setQuestions([]);
+    setCurrentView('setup');
+  };
+  
+  const handleQuestionRevalidated = (index: number, updatedQuestion: Question) => {
+      setQuestions(prevQuestions => {
+          const newQuestions = [...prevQuestions];
+          newQuestions[index] = updatedQuestion;
+          return newQuestions;
+      });
+      if (!userStats.revalidationUsed) {
+        setUserStats(prev => ({...prev, revalidationUsed: true}));
+        unlockBadge('revalidator');
+      }
   };
   
   const handlePracticeMistakes = () => {
-      const incorrectQuestionsMap = new Map<string, Question>();
-      history.forEach(result => {
-        result.questions.forEach((q, index) => {
-          if (result.userAnswers[index] !== q.correctAnswerIndex) {
-            incorrectQuestionsMap.set(q.id, q);
-          }
-        });
+    const allMistakes = history.flatMap(result =>
+      result.questions.filter((q, index) => result.userAnswers[index] !== q.correctAnswerIndex)
+    );
+    if (allMistakes.length > 0) {
+      // Create a quiz from a sample of mistakes
+      const mistakeSample = allMistakes.sort(() => 0.5 - Math.random()).slice(0, 10);
+      setQuestions(mistakeSample);
+      setQuizSettings({
+        subject: mistakeSample[0].subject,
+        topics: [...new Set(mistakeSample.map(q => q.topic))],
+        count: mistakeSample.length,
+        difficulty: 'Medium', // Or some other logic
+        isMock: false,
+        grade: mistakeSample[0].grade,
+        instantFeedback: true,
       });
-
-      const questions = Array.from(incorrectQuestionsMap.values());
-      if (questions.length > 0) {
-        questions.sort(() => Math.random() - 0.5); // Shuffle
-        setQuizQuestions(questions);
-        setIsMock(false);
-        setInstantFeedbackMode(true);
-        setQuizGrade(questions[0].grade);
-        setView('quiz');
-      } else {
-        alert("You have no past mistakes to practice. Great job!");
-      }
+      setCurrentView('quiz');
+    }
   };
-  
+
   const renderContent = () => {
-    if (loadingState.active) {
+    if (isLoading) {
+      return <div className="flex justify-center items-center h-screen"><Spinner message={loadingMessage} /></div>;
+    }
+    if (error) {
       return (
-        <div className="flex items-center justify-center h-screen">
-          <Spinner message={loadingState.message} progress={loadingState.progress} />
+        <div className="flex flex-col justify-center items-center h-screen p-4 text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">An Error Occurred</h2>
+          <p className="text-slate-700 bg-red-100 p-4 rounded-lg">{error}</p>
+          <button onClick={handleBackToHome} className="mt-6 px-6 py-2 bg-blue-600 text-white rounded font-semibold">
+            Back to Setup
+          </button>
         </div>
       );
     }
 
-    if (error) {
-       return (
-         <div className="flex flex-col items-center justify-center h-screen text-center p-4">
-             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative max-w-lg" role="alert">
-                <strong className="font-bold">Oh no! </strong>
-                <span className="block sm:inline">{error}</span>
-             </div>
-             <button onClick={resetToHome} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                Try Again
-             </button>
-         </div>
-       );
-    }
-
-    switch (view) {
+    switch (currentView) {
       case 'quiz':
-        return <Quiz questions={quizQuestions} isMock={isMock} instantFeedback={instantFeedbackMode} onQuizComplete={handleQuizComplete} onQuestionRevalidated={handleQuestionRevalidated} />;
+        return <Quiz questions={questions} isMock={quizSettings?.isMock || false} instantFeedback={quizSettings?.instantFeedback || false} onQuizComplete={handleQuizComplete} onQuestionRevalidated={handleQuestionRevalidated}/>;
       case 'report':
-        return currentResult && <ReportCard result={currentResult} onBackToHome={resetToHome} onRetakeQuiz={resetToHome} onPracticeTopic={handlePracticeTopic} />;
+        return quizResult && <ReportCard result={quizResult} onBackToHome={handleBackToHome} onRetakeQuiz={handleRetakeQuiz} onPracticeTopic={handlePracticeTopic} />;
       case 'history':
-        return <History history={history} onBackToHome={resetToHome} onViewReport={handleViewReportFromHistory} onPracticeMistakes={handlePracticeMistakes} />;
+        return <History history={history} onBackToHome={handleBackToHome} onViewReport={(result) => { setQuizResult(result); setCurrentView('report'); }} onPracticeMistakes={handlePracticeMistakes} />;
       case 'setup':
       default:
         return <QuizSetup onStartQuiz={handleStartQuiz} onViewHistory={handleViewHistory} prefilledSetup={prefilledSetup} onPrefillConsumed={() => setPrefilledSetup(null)} />;
@@ -309,10 +243,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <div className="container mx-auto py-8">
-        {renderContent()}
-      </div>
+    <main className="bg-slate-50 min-h-screen font-sans text-slate-900">
+      <BadgeNotification badge={badgeQueue[0] || null} onDismiss={showNextBadge} />
+      {renderContent()}
     </main>
   );
 };
